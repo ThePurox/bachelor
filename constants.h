@@ -55,6 +55,7 @@ extern double** freeEnergy;
 extern double** power;
 extern double** powerAd;
 extern double** dissipation;
+extern double** extPower;
 
 extern double dx;
 extern double alpha;

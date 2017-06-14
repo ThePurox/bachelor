@@ -39,5 +39,7 @@ int factorial(int n);
 double residuumFreeEnergy();
 void calcPower(double* psi,double**vSquared,int step,int printStep);
 void printTime(double** arr, ofstream &file);
+double calcExtPower(int step, int printStep);
+double calcdtVext(int x, int y, double t);
 #endif
 
