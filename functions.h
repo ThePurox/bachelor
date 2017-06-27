@@ -19,6 +19,7 @@ void tridag(double r[],int a[],int select);
 void cicle(int a[],int select);
 double intPsi(double func[]);
 void printPsi(double func[],int n,ofstream &out);
+void printPsi(double func[],int n,ofstream &out,double t);
 void printDensity2(int dim1,int dim2);
 void calcRelative(double* psi, double relaA[],double baryA[]);
 void analyticfactor(double t);
@@ -39,7 +40,11 @@ int factorial(int n);
 double residuumFreeEnergy();
 void calcPower(double* psi,double**vSquared,int step,int printStep);
 void printTime(double** arr, ofstream &file);
-double calcExtPower(int step, int printStep);
+void calcExtPower(int step, int printStep);
 double calcdtVext(int x, int y, double t);
+double diffDens(int x,int y, int dir,int step);
+void dani(int step,int printStep);
+void printSuperCurr(ofstream &superCurrout);
+
 #endif
 

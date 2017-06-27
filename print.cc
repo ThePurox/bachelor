@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <math.h>
 #include <fstream>
@@ -10,10 +11,52 @@ using namespace std;
 #include "constants.h"
 #include "functions.h"
 
-
 void printPsi(double func[],int n,ofstream &out){
 	if(n==N){
 		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[i]<<endl;	
+		out<<endl<<endl;
+		return;
+	}
+	if(n==NN){
+		for(int i=0;i<N;i++){
+			for(int j=0;j<N;j++){
+				out<<i*dx<<"\t"<<j*dx<<"\t"<<func[IndNN(i,j)]<<endl;
+			}
+			out<<endl;
+		}
+		out<<endl;
+		return;
+	}
+	if(n==N_psi){
+		int a[N_PS];
+		for(int i=0;i<N_PS;i++) a[i]=0;
+		for(int i=0;i<N_psi;i++){
+			for(int j=N_PS-1;j>=0;j--) out<<a[j]*dx<<"\t";
+			out<<func[LinInd(a)]<<endl;			
+			a[0]++;
+			for(int j=0;j<N_PS-1;j++){
+				if(a[j]>=N){a[j+1]++;a[j]=0;if(j==N_PS-2)out<<endl;}
+			}	
+		}	
+		out<<endl;
+
+		if(N_PS==1){
+			out<<endl;
+			for(int i=0;i<N;i++){
+				for(int j=0;j<N;j++){
+					out2<<i*dx<<"\t"<<j*dx<<"\t"<<func[i]*func[j]<<endl;
+				}
+				out2<<endl;
+			}
+			out2<<endl;
+
+		}
+	}
+}
+
+void printPsi(double func[],int n,ofstream &out,double t){
+	if(n==N){
+		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i-int(n*4*t/tFinal)+5*n)%n]<<endl;	
 		out<<endl<<endl;
 		return;
 	}
@@ -175,26 +218,39 @@ void printCurrent(double*** current,ofstream &currentout){
 	currentout<<endl;
 }
 
+void printSuperCurr(ofstream &superCurrout){
+	for(int x=0;x<N;x++){
+		int Ny=N;
+		if(N_space==1) Ny=1;
+		for(int y=0;y<Ny;y++){
+			superCurrout << x*dx << "\t" << y*dx << "\t";
+			for(int space=0;space<N_space;space++)
+				superCurrout<<current[IndNN(x,y)][0][space] - currentAd[IndNN(x,y)][0][space]<<"\t";
+			superCurrout<<endl;
+		}
+		if(N_space==2)superCurrout<<endl;
+	}
+	if(N_space==1)superCurrout<<endl;
+	superCurrout<<endl;
+}
+
 void printTime(double**arr,ofstream &file){
-	if(arr==::power||arr==::powerAd){
-		for(int i=0;i<printNumb;i++){
-			for(int k=0; k<5;k++)
-				file<<arr[k][i]<<"\t";
-			file<<endl;
-		}
+	int col=0;
+	if(arr==::power||arr==::powerAd)
+		col=6;
+	if(arr==::freeEnergy)
+		col=5;
+	if(arr==::dissipation)
+		col=3;
+	if(arr==::extPower)
+		col=3;	
+	if(arr==::daniA)
+		col=2;	
+	if(arr==::squares)
+		col=10;	
+	for(int i=0;i<printNumb;i++){
+		for(int k=0; k<col;k++)
+			file<<arr[k][i]<<"\t";
+		file<<endl;
 	}
-	if(arr==::freeEnergy){
-		for(int i=0;i<printNumb;i++){
-			for(int k=0; k<4;k++)
-				file<<arr[k][i]<<"\t";
-			file<<endl;
-		}
-	}
-	if(arr==::dissipation){
-		for(int i=0;i<printNumb;i++){
-			for(int k=0; k<3;k++)
-				file<<arr[k][i]<<"\t";
-			file<<endl;
-		}
-	}	
 }

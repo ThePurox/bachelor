@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <math.h>
 #include <fstream>
@@ -13,24 +14,34 @@ using namespace std;
 
 const int N_part=2;
 const int N_space=1;
-const int N=50;
-const double tFinal=15;//*sigWWPot^2*gamma/eps
+const int N=100;
+const double tFinal=25;//*sigWWPot^2*gamma/eps
 const double dt=5e-3;
-const double T=0.40;
+const double T=00.40;
 const double L=10;//*sigWWPot
-const int printNumb=1000;
+const int printNumb=100;
 
 
-const bool VextTimeDependent=false;
+const bool VextTimeDependent=true;
 const bool superAdBool=true;
 const bool analyticBool=false;
 
 const bool printPsiBool=true;
 const bool printDensityBool=true;
 const bool printCurrentBool=true;
-const bool printRelativeBool=true;
+const bool printRelativeBool=false;
 const bool printWWFBool=false;
 const bool printPowerBool=true;
+const bool printDisBool=true;
+const bool printExtPowerBool=true;
+const bool daniBool=true;
+
+int forceInt=2;
+/* 0 = No Force
+ * 1 = BavarianHat
+ * 2 = Sine
+ * 3 = NoSlapGauss
+ */
 
 vector<string> filenames={
 	"psi",
@@ -49,11 +60,15 @@ vector<string> filenames={
 	"superAd",
 	"dcurrent",
 	"ddensity",
-	"timeDependent",
+	"freeEnergy",
 	"power",
 	"powerAd",
 	"psi2aus1",
-	"dissipation"
+	"dissipation",
+	"extPower",
+	"dani",
+	"superCurr",
+	"squares"
 };
 
 vector<ofstream> ofstreams(filenames.size());
@@ -87,13 +102,17 @@ ofstream& powerout=ofstreams[17];
 ofstream& powerAdout=ofstreams[18];
 ofstream& out2=ofstreams[19];
 ofstream& dissipationout=ofstreams[20];
+ofstream& extPowerout=ofstreams[21];
+ofstream& daniout=ofstreams[22];
+ofstream& superCurrout=ofstreams[23];
+ofstream& squaresout=ofstreams[24];
 
 
 const double sigWWPot=1;
 const double eps=1;
-const double extForceFactor=1;
-const double extPotFactor0=1;
-const int overscan=0;
+const double extForceFactor=1e-0;
+const double extPotFactor0=1e+0;
+const int overscan=1;
 long count=0;
 const int N_PS=N_space*N_part;
 long N_psi;
@@ -104,6 +123,7 @@ double sigVext0=L/6.*L/6.;
 double initialNorm=1;
 double norm;
 int NN=1;
+int version;
 
 double* psi;
 double* initial;
@@ -121,7 +141,9 @@ double** freeEnergy;
 double** power;
 double** powerAd;
 double** dissipation;
-
+double** extPower;
+double** daniA;
+double** squares;
 
 #include "functions.h"
 
@@ -154,17 +176,61 @@ void calcF(double t){
 		if(N_space==2){
 			for(int j=0;j<N;j++){
 				double y=(j)*dx;
-				extForce[IndNN(i,j)][0][count%2]=0+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L*(L*L*y*y-2*y*y*y*L+y*y*y*y)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
-				extForce[IndNN(i,j)][1][count%2]=0+extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+				extForce[IndNN(i,j)][0][count%2]=0+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L*(L*L*y*y-2*y*y*y*L+y*y*y*y)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+				extForce[IndNN(i,j)][1][count%2]=0+extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+				switch(forceInt){
+					case 0:
+						extForce[IndNN(i,j)][0][count%2]=0;
+						extForce[IndNN(i,j)][1][count%2]=0;
+						break;
+					case 1:
+						extForce[IndNN(i,j)][0][count%2]=extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L*(L*L*y*y-2*y*y*y*L+y*y*y*y)*16./L/L/L/L;
+						extForce[IndNN(i,j)][1][count%2]=extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;
+						break;
+					case 2:
+						extForce[IndNN(i,j)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
+						extForce[IndNN(i,j)][1][count%2]=0;//extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
+						break;
+					case 3:
+						int x0=x-L/4.-L*t/tFinal;
+						int y0=y-L/4.-L*t/tFinal;
+						extForce[IndNN(i,j)][0][count%2]=0;
+						extForce[IndNN(i,j)][1][count%2]=0;
+						for(int k=-1;k<=1;k++){
+							x=x0+k*L;
+							y=y0+k*L;
+							extForce[IndNN(i,j)][0][count%2]+=-2*extForceFactor*x*exp(-x*x-y*y);
+							extForce[IndNN(i,j)][1][count%2]+=-2*extForceFactor*y*exp(-x*x-y*y);
+						}
+						break;	
+						//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
+						//extForce[IndNN(i,0)][0][count%2]=0/*-2*x*exp(-x*x);-2*(0.5-t/tFinal)*/+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+				}
+
 			}
 		}else{
-			//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+1./1.*t/tFinal));
-			extForce[IndNN(i,0)][0][count%2]=0/*-2*x*exp(-x*x);/*-2*(0.5-t/tFinal)*/+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+			switch(forceInt){
+				case 0:
+					extForce[IndNN(i,0)][0][count%2]=0;
+					break;
+				case 1:
+					extForce[IndNN(i,0)][0][count%2]=extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;
+					break;
+				case 2:
+					extForce[IndNN(i,0)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
+					break;
+				case 3:
+					x-=L/4.+L*t/tFinal;
+					extForce[IndNN(i,0)][0][count%2]=-2*extForceFactor*x*exp(-x*x);
+					break;	
+					//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
+					//extForce[IndNN(i,0)][0][count%2]=0/*-2*x*exp(-x*x);-2*(0.5-t/tFinal)*/+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+			}
 		}
 	}
 	count++;
 	//return T/dx/100;
-//	return -2*dx*(a-N/2);
+	//	return -2*dx*(a-N/2);
 }
 
 double calcWWF(int a[N_PS],int select,bool pot){
@@ -192,8 +258,7 @@ double calcWWF(int a[N_PS],int select,bool pot){
 				sum+=temp;
 			}
 		}	
-	}
-	else{
+	}else{
 		for(int i=0;i<N_PS;i++){
 			if(i==select) continue;
 			dist=(a[select]-a[i])*dx;
@@ -208,7 +273,6 @@ double calcWWF(int a[N_PS],int select,bool pot){
 
 void initPrint(){
 	ifstream versionfile("/home/nico/version.log");
-	int version;
 	versionfile>>version;
 	version++;
 	cout<<"Version: "<<version<<"Bool: "<<versionfile.is_open()<<endl;
@@ -219,15 +283,32 @@ void initPrint(){
 	string vString;
 	string sep=" | ";
 	string directory="/home/nico/data/";
+	string forceString;
+	switch(forceInt){
+		case 0:
+			forceString="0";
+			break;
+		case 1:
+			forceString="BavarianHat";
+			break;
+		case 2:
+			forceString="Sine";
+			break;
+		case 3:
+			forceString="NoSlapGauss";
+			break;
+	}
 	if(version<10) vString="00"+to_string(version);
 	else if(version<100) vString="0"+to_string(version);
 	else if(version>=100) vString=to_string(version);
 
 //	sprintf(vString,"%03d",version);
-	for(int i=0;i<filenames.size();i++){
+	for(int i=0;i<int(filenames.size());i++){
 		filenames[i]=directory + filenames[i] + vString + ".dat";
 		ofstreams[i].open(filenames[i]);
-		ofstreams[i]<<"#N_part: "<<N_part<<sep<<"N_space: "<<N_space<<sep<<"N: "<<N<<sep<<"t_final: "<<tFinal<<sep<<"dt: "<<dt<<sep<<"Boxsize: "<<L<<sep<<"printNumb: "<<printNumb<<endl;
+//ofstreams[i]<<"#N_part: "<<N_part<<sep<<"N_space: "<<N_space<<sep<<"N: "<<N<<sep<<"t_final: "<<tFinal<<sep<<"dt: "<<dt<<sep<<"Boxsize: "<<L<<sep<<"printNumb: "<<printNumb<<endl;
+		ofstreams[i]<<"#N_part: "<<sep<<"N_space: "<<sep<<"N: "<<sep<<"t_final: "<<sep<<"dt: "<<sep<<"Boxsize: "<<sep<<"printNumb: "<<sep<<"Temp: "<<sep<<"Force: "<<endl;
+		ofstreams[i]<<N_part<<" "<<N_space<<" "<<N<<" "<<tFinal<<" "<<dt<<" "<<L<<" "<<printNumb<<" "<<T<<" "<<forceString<<endl;
 	}
 
 
@@ -251,8 +332,8 @@ void initArrays(){
 
 	Vext = (double*) malloc(NN*sizeof(double));
 
-	freeEnergy = (double**) malloc(4*sizeof(double*));
-	for(int i=0;i<4;i++)
+	freeEnergy = (double**) malloc(5*sizeof(double*));
+	for(int i=0;i<5;i++)
 		freeEnergy[i]=(double*) malloc(printNumb*sizeof(double));
 
 	// arrays with N*N: current, extForce
@@ -264,18 +345,30 @@ void initArrays(){
 		density[i]= (double*) malloc(NN*sizeof(double));
 	
 	
-	power = (double**) malloc(5*sizeof(double*));
-	for(int i=0;i<5;i++) 
+	power = (double**) malloc(6*sizeof(double*));
+	for(int i=0;i<6;i++) 
 		power[i]= (double*) malloc(printNumb*sizeof(double));
+
+	extPower = (double**) malloc(3*sizeof(double*));
+	for(int i=0;i<3;i++) 
+		extPower[i]= (double*) malloc(printNumb*sizeof(double));
 
 	dissipation = (double**) malloc(3*sizeof(double*));
 	for(int i=0;i<3;i++) 
 		dissipation[i]= (double*) malloc(printNumb*sizeof(double));
 
-	powerAd = (double**) malloc(5*sizeof(double*));
-	for(int i=0;i<5;i++) 
+	powerAd = (double**) malloc(6*sizeof(double*));
+	for(int i=0;i<6;i++) 
 		powerAd[i]= (double*) malloc(printNumb*sizeof(double));
 	
+	daniA = (double**) malloc(2*sizeof(double*));
+	for(int i=0;i<2;i++) 
+		daniA[i]= (double*) malloc(printNumb*sizeof(double));
+
+	squares = (double**) malloc(10*sizeof(double*));
+	for(int i=0;i<10;i++) 
+		squares[i]= (double*) malloc(printNumb*sizeof(double));
+
 	current = (double***) malloc(NN*sizeof(double**));
 	for(int j=0;j<NN;j++){
 		current[j] = (double**) malloc(3*sizeof(double*));
@@ -420,6 +513,12 @@ void analytic(double t){
 
 
 void analyticfactor(double t){
+	if(t==0){
+		for(int i=0; i<N_psi;i++)
+			anal[i]=psi[i];
+		return;
+	}
+
 	double norm=dx/pow(4*M_PI*t*T,0.5);	
 	int a[N_PS];
 	for(int j=0; j<N_PS;j++) a[j]=0;
@@ -433,7 +532,7 @@ void analyticfactor(double t){
 					for(int c=-N*overscan; c<N*(overscan+1); c++)
 						sum+=initial[IndNN(b,c)]*exp(-((b-i)*(b-i)+(c-j)*(c-j))*dx*dx/4./t/T);
 				}
-				analtemp[IndNN(i,j)]=sum*norm;
+				analtemp[IndNN(i,j)]=sum*norm*norm;
 			}
 		}
 	}else{
@@ -449,7 +548,7 @@ void analyticfactor(double t){
 	for(int l=0; l<N_psi; l++){
 		double pro = 1;
 		for(int j=0; j<N_part;j++){
-			pro*=analtemp[IndNN(a[2*j],a[2*j+1])];
+			pro*=analtemp[IndNN(a[N_space*j],a[N_space*j+N_space-1])];
 		}
 		anal[LinInd(a)] = pro;
 		combi(a);
@@ -458,20 +557,7 @@ void analyticfactor(double t){
 }
 
 
-/*
-void densitiy(double roh[N]){
-	int a[N_PS];
-	for(int i=0;i<N;i++) a[i]=0;
-	for(int p=0;p<N_part;p++){
-		for(int i=0;i<N;i++){
-			a[N_space*p]=i;
-			double sum=0;
 
-	
-	
-	
-	
-}*/
 
 void densitySum(double* psi,double rho[]){
 	double temp[NN];
@@ -576,22 +662,11 @@ double residuum(double a[],double b[],int n,int dim){
 
 double residuumCurrent(int step){
 	double sum=0;
-	double tempDens[NN];
-	densitySum(psi,density[(step+1)%3]);
 	if(N_space==1){
 		if(step>1){
 			for(int i=0;i<N;i++){
-				double test;
-				//test environment
-				dcurrent << i << "\t" << (sumCurrent(i+1,0,0)-sumCurrent(i-1,0,0))/(2*dx) << endl;
-				ddensity << i << "\t" << -(density[(step+1)%3][i]-density[(step-1+3)%3][i])/(2*dt) << endl;
-				test= fabs((sumCurrent(i+1,0,0)-sumCurrent(i-1,0,0))/(2*dx) + (density[(step+1)%3][i]-density[(step-1+3)%3][i])/(2*dt));
-				//cout<<i<<"\t"<<test<<endl;
-				sum+=test;
+				sum+= fabs((sumCurrent(i+1,0,0)-sumCurrent(i-1,0,0))/(2*dx) + (density[(step)%3][i]-density[(step-2+3)%3][i])/(2*dt));
 			}
-			dcurrent << endl << endl;
-			ddensity << endl << endl;
-
 			sum*=dx;
 		}
 	}
@@ -599,23 +674,12 @@ double residuumCurrent(int step){
 		if(step>1){
 			for(int posx=0;posx<N;posx++){
 				for(int posy=0;posy<N;posy++){
-					double test;
-					//test environment
-					dcurrent << posx << "\t" << posy << "\t"  << (sumCurrent(posx+1,posy,0)-sumCurrent(posx-1,posy,0)+sumCurrent(posx,posy+1,1)-sumCurrent(posx,posy-1,1))/(2*dx) << endl;
-					ddensity << posx << "\t" << posy << "\t"  << -(density[(step+1)%3][IndNN(posx,posy)]-density[(step-1+3)%3][IndNN(posx,posy)])/(2*dt) << endl;
-					test= fabs((sumCurrent(posx+1,posy,0)-sumCurrent(posx-1,posy,0)+sumCurrent(posx,posy+1,1)-sumCurrent(posx,posy-1,1))/(2*dx) + (density[(step+1)%3][IndNN(posx,posy)]-density[(step-1+3)%3][IndNN(posx,posy)])/(2*dt));
-					//cout<<i<<"\t"<<test<<endl;
-					sum+=test;
+					sum+= fabs((sumCurrent(posx+1,posy,0)-sumCurrent(posx-1,posy,0)+sumCurrent(posx,posy+1,1)-sumCurrent(posx,posy-1,1))/(2*dx) + (density[(step)%3][IndNN(posx,posy)]-density[(step-2+3)%3][IndNN(posx,posy)])/(2*dt));
 				}
-				dcurrent << endl;
-				ddensity << endl;
 			}
-			dcurrent << endl;
-			ddensity << endl;
 			sum*=dx*dx;
 		}
 	}
-	calcCurrent(psi,current);
 	return sum;
 }
 
@@ -745,8 +809,10 @@ void calcRelative(double* psi, double relaA[],double baryA[]){
 
 void calcPower(double* psi,double**vSquared,int step,int printStep){
 	double powder = pow(dx,N_PS);
-	for(int k=0; k<5;k++)
+	for(int k=0; k<6;k++)
 		vSquared[k][printStep]=0;
+	for(int i=1;i<10;i++)
+		squares[i][printStep]=0;
 	int a[N_PS];
 	for(int select=0;select<N_part;select++){
 		for(int k=0;k<N_PS;k++)a[k]=0;
@@ -761,44 +827,103 @@ void calcPower(double* psi,double**vSquared,int step,int printStep){
 				sum[2][space]=-T*diffPsi(psi,a,N_space*select+space)/psi[LinInd(a)];
 				for(int k=0; k<3;k++)
 					v[space]+=sum[k][space];	
+				for(int i=0;i<9;i++){
+						squares[i+1][printStep]+=sum[i/3][space]*sum[i%3][space]*psi[LinInd(a)];
+				}
 			}
 			for(int k=0; k<3;k++){
 				for(int space=0;space<N_space;space++)
-					vSquared[k+1][printStep]+=0.5*v[space]*psi[LinInd(a)]*sum[k][space];
+					vSquared[k+1][printStep]-=0.5*v[space]*psi[LinInd(a)]*sum[k][space];
 				
 			}
 			combi(a);	
 		}
 	}
-	for(int k=0;k<3;k++)
-		vSquared[4][printStep]+=vSquared[k+1][printStep];
-	for(int k=0; k<4;k++)
+	vSquared[4][printStep]=extPower[2][printStep];
+	for(int k=0; k<3;k++)
 		vSquared[k+1][printStep]*=powder;
+	for(int k=1; k<10;k++)
+		squares[k][printStep]*=powder;
+	for(int k=0;k<4;k++)
+		vSquared[5][printStep]+=vSquared[k+1][printStep];
 	vSquared[0][printStep]=step*dt;
+	squares[0][printStep]=step*dt;
 
 }
 
+double diffDens(int x,int y, int dir,int step){
+	return (density[step%3][IndNN(x+1-dir,y+dir)] - density[step%3][IndNN(x-1+dir,y-dir)])/2/dx;
+}
+
+
+void dani(int step,int printStep){
+	double sum=0;
+	for(int x=0;x<N;x++){
+		int Ny=N;
+		if(N_space==1) Ny=1;
+		for(int y=0;y<Ny;y++){
+			for(int space=0;space<N_space;space++)
+				sum+=-T*sumCurrent(x,y,space)*diffDens(x,y,space,step);
+		}
+	}
+	daniA[0][printStep]=step*dt;
+	daniA[1][printStep]=sum*pow(dx,N_space);
+}
+
+void calcExtPower(int step, int printStep){
+	double powder = pow(dx,N_space);
+	double sum=0,sum1=0;
+	for(int x=0;x<N;x++){
+		int Ny=N;
+		if(N_space==1)Ny=1;
+		for(int y=0;y<Ny;y++){
+			for(int space=0;space<N_space;space++)
+				sum+=sumCurrent(x,y,space)*extForce[IndNN(x,y)][space][(count+1)%2];
+			if(VextTimeDependent)
+				sum1+=calcdtVext(x,y,step*dt)*density[(step)%3][IndNN(x,y)];
+		}
+	}
+	extPower[0][printStep]=step*dt;
+	extPower[1][printStep]=sum*powder;
+	extPower[2][printStep]=sum1*powder;
+	
+}
+
 void calcDiss(int step,int printStep){
-	if(printStep!=0 && printStep!=printNumb){
 		dissipation[0][printStep]=step*dt;
-		dissipation[1][printStep-1]=power[4][printStep-1]-(freeEnergy[3][printStep]-freeEnergy[3][printStep-2])/(dt*steps/printNumb*2.);
+		dissipation[1][printStep]=power[5][printStep]-freeEnergy[2][printStep]+extPower[1][printStep]-extPower[2][printStep];//-(freeEnergy[3][printStep]-freeEnergy[3][printStep-2])/(dt*steps/printNumb*2.);
 		dissipation[2][printStep]=0;
 		double curr;
 		for(int i=0;i<NN;i++){
 			for(int space=0;space<N_space;space++){
 				curr=sumCurrent(i%N,i/N,space);
-				dissipation[2][printStep]+=curr*curr/density[(step+1)%3][i];
+				dissipation[2][printStep]+=curr*curr/density[(step)%3][i];
 			}
 		}
 		dissipation[2][printStep]*=pow(dx,N_space)/2.;
-	}
 		
 }
-
+double calcdtVext(int x, int y, double t){
+	double r=0;
+	switch(forceInt){
+		case 2:
+			r=2*M_PI/tFinal*sin(2*M_PI*(x/L+4./1.*t/tFinal));
+			break;
+		case 3:
+			x-=L/4.+L*t/tFinal;
+			r=-2*x*L/tFinal*exp(-x*x);
+			break;
+	}
+	if(VextTimeDependent && r==0)
+		for(int i=0;i<10;i++)
+		cout<<"warning dV(t)/dt=0!"<<endl;
+	return r;
+}
 int main(){
 	init();
 	double psi0=intPsi(psi);
 	double baryA[NN],relaA[NN];
+	double resCurr;
 	cout<<psi0<<endl;
 	time_t t_0;
 	time(&t_0);
@@ -807,6 +932,8 @@ int main(){
 	{calcF(0);calcF(0);}
 	cout<<"N Space: "<<N_space<<endl<<"N Part: "<<N_part<<endl;
 	for(int i=0;i<steps;i++){
+		densitySum(psi,density[(i)%3]);   // do not change this order
+		resCurr=residuumCurrent(i);       // residuumCurrent needs old current and new density
 		calcCurrent(psi,current);
 		//		printPsi(density[i%3],N,densityout);
 		if(i%int(ceil(steps*1./printNumb))==0) {
@@ -829,17 +956,18 @@ int main(){
 				if(printCurrentBool){
 					calcCurrent(psiAd,currentAd);
 					printCurrent(currentAd,currentAdout);
+					printSuperCurr(superCurrout);
 				}
 				if(printPowerBool){
 					calcPower(psiAd,powerAd,i,i*printNumb/steps);
 				}
 			}
+
 			if(N_PS<=2||printPsiBool){ 
 				printPsi(psi,N_psi,psiout); 
 			}
 			if(printDensityBool){
-				densitySum(psi,baryA);
-				printPsi(baryA,NN,densityout);
+				printPsi(density[i%3],NN,densityout,i*dt);
 			}
 			if(printRelativeBool){
 				calcRelative(psi,relaA,baryA);
@@ -847,44 +975,51 @@ int main(){
 				printPsi(baryA,NN,barycenterout);
 			}
 			if(printCurrentBool){
-				calcCurrent(psi,current);
 				printCurrent(current,currentout);
-				residuumCurrent(i);
+				cout<<"Residuum Current: "<<resCurr<<endl;
 			}
-			if(printPowerBool)
+			if(printPowerBool){
+				calcExtPower(i,i*printNumb/steps);
 				calcPower(psi,power,i,i*printNumb/steps);
+			}
 			if(analyticBool){
-				analyticfactor((i+1)*dt);  ////////////////////////////////////////////hier noch +1? glaube nicht weil doStep() jetzt weiter unten ist
+				analyticfactor(i*dt); //hier noch +1? glaube nicht weil doStep() jetzt weiter unten ist
 				double div=1./intPsi(anal);
 				cout<<"Analytic: \t" << 1.-intPsi(anal)<<endl;
 				for(int j=0;j<N_psi;j++) anal[j]*=div;
 				printPsi(anal,N_psi,anout);
 				cout<<"Resdiuum Analytic: \t" << residuum(psi,anal,N_psi,N_PS)<<endl;
 			}
+			if(daniBool){
+				dani(i,i*printNumb/steps);
+			}
 			double psi1=intPsi(psi); 
 			cout<<"Deviation: \t"<<(psi1-psi0)/psi0<<endl;
 			calcDiss(i,i*printNumb/steps);
-		}else{
-			if(printCurrentBool){
-				residuumCurrent(i);
-			}
 		}
 		doStep(i*dt);
 	}
+	cout<<"Free Energy deviation: "<< residuumFreeEnergy()<<endl;
 	if(printPowerBool){
 		if(superAdBool)
 			printTime(powerAd,powerAdout);
 		printTime(power,powerout);
+		printTime(squares,squaresout);
 	}
 	if(superAdBool)
 		printTime(freeEnergy, timeout);
 
-	printTime(dissipation,dissipationout);
+	if(printDisBool)
+		printTime(dissipation,dissipationout);
+	if(printExtPowerBool)
+		printTime(extPower,extPowerout);
+	if(daniBool)
+		printTime(daniA,daniout);
 
-	cout<<"Free Energy deviation: "<< residuumFreeEnergy()<<endl;
 	time_t t_1;
 	time(&t_1);
 	cout<<"Minutes: " <<difftime(t_1,t_0)/60<<endl;
+	cout<<"Version: "<<version<<endl;
 
 }
 

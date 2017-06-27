@@ -18,6 +18,9 @@ extern ofstream& timeout;
 extern ofstream& powerAdout;
 extern ofstream& powerout;
 extern ofstream& dissipationout;
+extern ofstream& daniout;
+extern ofstream& superCurrout;
+extern ofstream& squaresout;
 
 extern const double sigWWPot;
 extern const double eps;
@@ -38,6 +41,7 @@ extern const double dt;
 extern const int steps;
 extern int NN;
 extern double norm;
+extern int forceInt;
 
 extern double* psi;
 extern double* initial;
@@ -56,6 +60,8 @@ extern double** power;
 extern double** powerAd;
 extern double** dissipation;
 extern double** extPower;
+extern double** daniA;
+extern double** squares;
 
 extern double dx;
 extern double alpha;

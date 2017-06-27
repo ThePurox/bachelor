@@ -25,12 +25,10 @@ void calcSuperAdFF(){
 }*/
 
 void doSuperAd(int step,int printStep){
-	double densAd[NN],superAd[NN];
+	double densAd[NN];
 	double res=1;
 	int counter=0;
 	int a[N_PS];
-	densitySum(psi,density[(step+1)%3]);
-	//	guessVext();
 	do{
 		for(int i=0;i<N_PS;i++) a[i]=0;
 		for(int i=0;i<N_psi;i++){
@@ -41,30 +39,28 @@ void doSuperAd(int step,int printStep){
 		for(int i=0;i<N_psi;i++)
 			psiAd[i]*=norm;
 		densitySum(psiAd,densAd);
-		res=residuum(density[(step+1)%3],densAd,NN,N_part-1);
+		res=residuum(density[(step)%3],densAd,NN,N_part-1);
 		for(int i=0;i<NN;i++){
-			Vext[i]+=0.35*log(densAd[i]/density[(step+1)%3][i]);
+			Vext[i]+=0.32*log(densAd[i]/density[(step)%3][i]);
 			if(densAd[i]<=0)cout<<"Fehler " <<densAd[i]<<endl;
 		}
 		counter++;
 //		cout<<res<<endl;
 		//			if(counter>=1000) cout<<"super ad did not converge"<<endl;
-	}while(fabs(res)>=1e-6 && counter<10000);
+	}while(fabs(res)>=1e-9 && counter<10000);
 	cout<<"After "<<counter<<" iterations Super Ad did converge"<<endl;
 	cout<<"With Residuum "<<res<<endl;
 	calcFreeEnergy(step,printStep);
 	printPsi(Vext,NN,vextout);
-	for(int i=0;i<NN;i++){
-		superAd[i]=0;
-	}
 }
 
 void calcFreeEnergy(int step,int printStep){
 	double fE=T*log(norm*factorial(N_part));
 	freeEnergy[3][printStep]=fE;
 	for(int i=0;i<NN;i++){
-		fE-=Vext[i]*density[(step+1)%3][i]*dx;
+		fE-=Vext[i]*density[(step)%3][i];
 	}
+	fE*=dx;
 	double dtF=0;
 	for(int x=0;x<N;x++){
 		for(int y=0;y<=(N-1)*(N_space-1);y++){
@@ -80,8 +76,12 @@ void calcFreeEnergy(int step,int printStep){
 
 double residuumFreeEnergy(){
 	double sum=0;
-	for(int i=2;i<printNumb-1;i++)
-		sum+=fabs(freeEnergy[2][i]-(freeEnergy[1][i+1]-freeEnergy[1][i-1])/(freeEnergy[0][i+1]-freeEnergy[0][i-1]));
+	for(int i=1;i<printNumb-1;i++){
+		freeEnergy[4][i]=(freeEnergy[1][i+1]-freeEnergy[1][i-1])/(freeEnergy[0][i+1]-freeEnergy[0][i-1]);
+		sum+=fabs(freeEnergy[2][i]-freeEnergy[4][i])*(freeEnergy[0][i+1]-freeEnergy[0][i-1]);
+	}
+	freeEnergy[4][0]=(freeEnergy[1][1]-freeEnergy[1][0])/(freeEnergy[0][1]-freeEnergy[0][0]);
+	freeEnergy[4][printNumb-1]=(freeEnergy[1][printNumb-1]-freeEnergy[1][printNumb-2])/(freeEnergy[0][printNumb-1]-freeEnergy[0][printNumb-2]);
 	return sum;
 }
 
