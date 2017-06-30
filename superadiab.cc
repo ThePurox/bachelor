@@ -24,11 +24,11 @@ void calcSuperAdFF(){
 	}
 }*/
 
-void doSuperAd(int step,int printStep){
+void doSuperAd(){
 	double densAd[NN];
 	double res=1;
 	int counter=0;
-	int a[N_PS];
+	int a[N_PS+1];
 	do{
 		for(int i=0;i<N_PS;i++) a[i]=0;
 		for(int i=0;i<N_psi;i++){
@@ -41,26 +41,26 @@ void doSuperAd(int step,int printStep){
 		densitySum(psiAd,densAd);
 		res=residuum(density[(step)%3],densAd,NN,N_part-1);
 		for(int i=0;i<NN;i++){
-			Vext[i]+=0.32*log(densAd[i]/density[(step)%3][i]);
+			Vext[i]+=0.35*log(densAd[i]/density[(step)%3][i]);
 			if(densAd[i]<=0)cout<<"Fehler " <<densAd[i]<<endl;
 		}
 		counter++;
 //		cout<<res<<endl;
 		//			if(counter>=1000) cout<<"super ad did not converge"<<endl;
-	}while(fabs(res)>=1e-9 && counter<10000);
+	}while(fabs(res)>=1e-6 && counter<10000);
 	cout<<"After "<<counter<<" iterations Super Ad did converge"<<endl;
 	cout<<"With Residuum "<<res<<endl;
-	calcFreeEnergy(step,printStep);
+	calcFreeEnergy();
 	printPsi(Vext,NN,vextout);
 }
 
-void calcFreeEnergy(int step,int printStep){
+void calcFreeEnergy(){
 	double fE=T*log(norm*factorial(N_part));
 	freeEnergy[3][printStep]=fE;
 	for(int i=0;i<NN;i++){
 		fE-=Vext[i]*density[(step)%3][i];
 	}
-	fE*=dx;
+	fE*=pow(dx,N_space);
 	double dtF=0;
 	for(int x=0;x<N;x++){
 		for(int y=0;y<=(N-1)*(N_space-1);y++){

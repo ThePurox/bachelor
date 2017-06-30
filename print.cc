@@ -13,7 +13,7 @@ using namespace std;
 
 void printPsi(double func[],int n,ofstream &out){
 	if(n==N){
-		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[i]<<endl;	
+		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i-int(n*speedRPS*step*dt/tFinal)+int(speedRPS+1)*n)%n]<<endl;	
 		out<<endl<<endl;
 		return;
 	}
@@ -28,7 +28,7 @@ void printPsi(double func[],int n,ofstream &out){
 		return;
 	}
 	if(n==N_psi){
-		int a[N_PS];
+		int a[N_PS+1];
 		for(int i=0;i<N_PS;i++) a[i]=0;
 		for(int i=0;i<N_psi;i++){
 			for(int j=N_PS-1;j>=0;j--) out<<a[j]*dx<<"\t";
@@ -54,48 +54,6 @@ void printPsi(double func[],int n,ofstream &out){
 	}
 }
 
-void printPsi(double func[],int n,ofstream &out,double t){
-	if(n==N){
-		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i-int(n*4*t/tFinal)+5*n)%n]<<endl;	
-		out<<endl<<endl;
-		return;
-	}
-	if(n==NN){
-		for(int i=0;i<N;i++){
-			for(int j=0;j<N;j++){
-				out<<i*dx<<"\t"<<j*dx<<"\t"<<func[IndNN(i,j)]<<endl;
-			}
-			out<<endl;
-		}
-		out<<endl;
-		return;
-	}
-	if(n==N_psi){
-		int a[N_PS];
-		for(int i=0;i<N_PS;i++) a[i]=0;
-		for(int i=0;i<N_psi;i++){
-			for(int j=N_PS-1;j>=0;j--) out<<a[j]*dx<<"\t";
-			out<<func[LinInd(a)]<<endl;			
-			a[0]++;
-			for(int j=0;j<N_PS-1;j++){
-				if(a[j]>=N){a[j+1]++;a[j]=0;if(j==N_PS-2)out<<endl;}
-			}	
-		}	
-		out<<endl;
-
-		if(N_PS==1){
-			out<<endl;
-			for(int i=0;i<N;i++){
-				for(int j=0;j<N;j++){
-					out2<<i*dx<<"\t"<<j*dx<<"\t"<<func[i]*func[j]<<endl;
-				}
-				out2<<endl;
-			}
-			out2<<endl;
-
-		}
-	}
-}
 /*
    void printDensity2(int dim1,int dim2){
    if(N_PS<=1) return;
@@ -177,7 +135,7 @@ void printWWF(){
 	ofstream wwfout1("WWF1.dat");
 	ofstream wwfout2("WWF2.dat");
 	ofstream wwfout3("WWF3.dat");
-	int a[N_PS];
+	int a[N_PS+1];
 	for(int i=0;i<N_PS;i++) a[i]=0;
 	for(int i=0;i<N_psi;i++){
 		for(int j=0;j<N_PS;j++) wwfout1<<a[j]<<"\t";
@@ -224,8 +182,11 @@ void printSuperCurr(ofstream &superCurrout){
 		if(N_space==1) Ny=1;
 		for(int y=0;y<Ny;y++){
 			superCurrout << x*dx << "\t" << y*dx << "\t";
-			for(int space=0;space<N_space;space++)
+			for(int space=0;space<N_space;space++){
 				superCurrout<<current[IndNN(x,y)][0][space] - currentAd[IndNN(x,y)][0][space]<<"\t";
+				superCurrout<<(current[IndNN(x,y)][0][space] - currentAd[IndNN(x,y)][0][space])/density[step%3][IndNN(x,y)]<<"\t";
+				superCurrout<<vel[IndNN(x,y)][0][space] - velAd[IndNN(x,y)][0][space]<<"\t";
+			}
 			superCurrout<<endl;
 		}
 		if(N_space==2)superCurrout<<endl;

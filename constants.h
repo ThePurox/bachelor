@@ -18,9 +18,12 @@ extern ofstream& timeout;
 extern ofstream& powerAdout;
 extern ofstream& powerout;
 extern ofstream& dissipationout;
+extern ofstream& extPowerout;
 extern ofstream& daniout;
 extern ofstream& superCurrout;
 extern ofstream& squaresout;
+extern ofstream& velout;
+extern ofstream& velAdout;
 
 extern const double sigWWPot;
 extern const double eps;
@@ -42,6 +45,10 @@ extern const int steps;
 extern int NN;
 extern double norm;
 extern int forceInt;
+extern int version;
+extern int step;
+extern int printStep;
+extern double speedRPS;
 
 extern double* psi;
 extern double* initial;
@@ -62,11 +69,13 @@ extern double** dissipation;
 extern double** extPower;
 extern double** daniA;
 extern double** squares;
+extern double*** vel;
+extern double*** velAd;
 
 extern double dx;
 extern double alpha;
 extern double sigVext0;
 extern double initialNorm;
-extern const bool VextTimeDependent;
+extern bool VextTimeDependent;
 
 #endif

@@ -129,7 +129,7 @@ void solveOff(int a[],int select){
 
 void doStep(double t){
 	for(int k=0;k<2;k++){
-		int a[N_PS];
+		int a[N_PS+1];
 		if(k==0) fillMDiff();	
 		if(k==1&&VextTimeDependent)calcF(t);
 		//	cout<< "MatrixGefüllt"<<endl;
@@ -149,15 +149,17 @@ void doStep(double t){
 
 				if(select==0){a[1]++;}
 				else {a[0]++;}
-				for(int j=0;j<N_PS-1;j++){
+				for(int l=0;l<N_PS-1;l++){
 
-					if(a[j]>=N){
+					if(a[l]>=N){
 
-						a[j]=0;
-						if(j+1==select)j++;
-						a[j+1]++;
+						a[l]=0;
+						if(l+1==select)l++;
+						a[l+1]++;
+						if(l+1>N_PS) cout<<"error!"<<endl;
 					}
 				}
+
 			}
 		}
 	}

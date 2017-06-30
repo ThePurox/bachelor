@@ -12,21 +12,22 @@ using namespace std;
 
 #include "constants.h"
 
-const int N_part=2;
-const int N_space=1;
+const int N_part=1;
+const int N_space=2;
 const int N=100;
-const double tFinal=25;//*sigWWPot^2*gamma/eps
+const double tFinal=5;//*sigWWPot^2*gamma/eps
 const double dt=5e-3;
 const double T=00.40;
 const double L=10;//*sigWWPot
 const int printNumb=100;
+double speedRPS=0.5;
 
 
-const bool VextTimeDependent=true;
+bool VextTimeDependent;
 const bool superAdBool=true;
 const bool analyticBool=false;
 
-const bool printPsiBool=true;
+const bool printPsiBool=false;
 const bool printDensityBool=true;
 const bool printCurrentBool=true;
 const bool printRelativeBool=false;
@@ -34,14 +35,16 @@ const bool printWWFBool=false;
 const bool printPowerBool=true;
 const bool printDisBool=true;
 const bool printExtPowerBool=true;
-const bool daniBool=true;
+const bool daniBool=false;
+const bool printVelBool=true;
 
-int forceInt=2;
+int forceInt=0;
 /* 0 = No Force
  * 1 = BavarianHat
  * 2 = Sine
  * 3 = NoSlapGauss
  */
+int gaussForceScan=1;
 
 vector<string> filenames={
 	"psi",
@@ -68,7 +71,9 @@ vector<string> filenames={
 	"extPower",
 	"dani",
 	"superCurr",
-	"squares"
+	"squares",
+	"velocity",
+	"velocityAd"
 };
 
 vector<ofstream> ofstreams(filenames.size());
@@ -106,6 +111,8 @@ ofstream& extPowerout=ofstreams[21];
 ofstream& daniout=ofstreams[22];
 ofstream& superCurrout=ofstreams[23];
 ofstream& squaresout=ofstreams[24];
+ofstream& velout=ofstreams[25];
+ofstream& velAdout=ofstreams[26];
 
 
 const double sigWWPot=1;
@@ -124,6 +131,8 @@ double initialNorm=1;
 double norm;
 int NN=1;
 int version;
+int step;
+int printStep=0;
 
 double* psi;
 double* initial;
@@ -144,10 +153,13 @@ double** dissipation;
 double** extPower;
 double** daniA;
 double** squares;
+double*** vel;
+double*** velAd;
+double* WWFArray;
 
 #include "functions.h"
 
-int LinInd(int a[N_PS]){
+int LinInd(int a[]){
 	int r=0;
 	int n=1;
 	for(int i=0;i<N_PS;i++){ r+=n*((a[i]+N*(overscan+1))%N); n*=N;}
@@ -176,8 +188,8 @@ void calcF(double t){
 		if(N_space==2){
 			for(int j=0;j<N;j++){
 				double y=(j)*dx;
-				extForce[IndNN(i,j)][0][count%2]=0+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L*(L*L*y*y-2*y*y*y*L+y*y*y*y)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
-				extForce[IndNN(i,j)][1][count%2]=0+extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+				//extForce[IndNN(i,j)][0][count%2]=0+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L*(L*L*y*y-2*y*y*y*L+y*y*y*y)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
+				//extForce[IndNN(i,j)][1][count%2]=0+extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
 				switch(forceInt){
 					case 0:
 						extForce[IndNN(i,j)][0][count%2]=0;
@@ -188,15 +200,15 @@ void calcF(double t){
 						extForce[IndNN(i,j)][1][count%2]=extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;
 						break;
 					case 2:
-						extForce[IndNN(i,j)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
+						extForce[IndNN(i,j)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+speedRPS/1.*t/tFinal));
 						extForce[IndNN(i,j)][1][count%2]=0;//extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
 						break;
 					case 3:
-						int x0=x-L/4.-L*t/tFinal;
-						int y0=y-L/4.-L*t/tFinal;
+						int x0=x-L/4.-speedRPS*L*t/tFinal;
+						int y0=y-L/4.-speedRPS*L*t/tFinal;
 						extForce[IndNN(i,j)][0][count%2]=0;
 						extForce[IndNN(i,j)][1][count%2]=0;
-						for(int k=-1;k<=1;k++){
+						for(int k=-gaussForceScan;k<=gaussForceScan;k++){
 							x=x0+k*L;
 							y=y0+k*L;
 							extForce[IndNN(i,j)][0][count%2]+=-2*extForceFactor*x*exp(-x*x-y*y);
@@ -217,11 +229,15 @@ void calcF(double t){
 					extForce[IndNN(i,0)][0][count%2]=extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;
 					break;
 				case 2:
-					extForce[IndNN(i,0)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
+					extForce[IndNN(i,0)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
 					break;
 				case 3:
-					x-=L/4.+L*t/tFinal;
-					extForce[IndNN(i,0)][0][count%2]=-2*extForceFactor*x*exp(-x*x);
+					int x0=x-L/4.-L*t/tFinal;
+					extForce[IndNN(i,0)][0][count%2]=0;
+					for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+						x=x0+k*L;
+						extForce[IndNN(i,0)][0][count%2]+=-2*extForceFactor*x*exp(-x*x);
+					}	
 					break;	
 					//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
 					//extForce[IndNN(i,0)][0][count%2]=0/*-2*x*exp(-x*x);-2*(0.5-t/tFinal)*/+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
@@ -233,11 +249,15 @@ void calcF(double t){
 	//	return -2*dx*(a-N/2);
 }
 
-double calcWWF(int a[N_PS],int select,bool pot){
-//	return 0;	
+double calcWWF(int b[],int select,bool pot){
+	return 0;	
 	double sum=0;
-	double distx=0,disty=0,dist,sqdist,temp;
+	double distx=0,disty=0,sqdist,temp;
+	int dist;
+	int a[N_PS+1];
 	int shift = select%N_space;
+	for(int i=0;i<N_PS;i++)
+		a[i]=(b[i]+N)%N;
 	if(N_space==2){
 		for(int i=0;i<(N_PS-1)/2;i++){
 			if(2*i==select||2*i+1==select) continue;
@@ -261,14 +281,23 @@ double calcWWF(int a[N_PS],int select,bool pot){
 	}else{
 		for(int i=0;i<N_PS;i++){
 			if(i==select) continue;
-			dist=(a[select]-a[i])*dx;
-			dist-= L*(int)(2*dist/L);
-			temp=exp(-dist*dist);
-			if(!pot) sum+=2*dist*temp;
+			dist=(a[select]-a[i]);
+			dist-= N*(int)(2*dist/N);
+			temp=WWFArray[abs(dist)];
+			//if(abs(dist)>=N/2+1)cout << dist << "\t" << temp <<"\t"<< exp(-dist*dist*dx*dx) << endl;
+			//temp =  exp(-dist*dist*dx*dx); 
+
+			if(!pot) sum+=2*dist*dx*temp;
 			else sum += temp;
 		}
 	}
 	return sum;
+}
+
+void initWWF(){
+	for(int x=0;x<=N/2;x++){
+		WWFArray[x]=exp(-x*x*dx*dx);
+	}
 }
 
 void initPrint(){
@@ -308,7 +337,7 @@ void initPrint(){
 		ofstreams[i].open(filenames[i]);
 //ofstreams[i]<<"#N_part: "<<N_part<<sep<<"N_space: "<<N_space<<sep<<"N: "<<N<<sep<<"t_final: "<<tFinal<<sep<<"dt: "<<dt<<sep<<"Boxsize: "<<L<<sep<<"printNumb: "<<printNumb<<endl;
 		ofstreams[i]<<"#N_part: "<<sep<<"N_space: "<<sep<<"N: "<<sep<<"t_final: "<<sep<<"dt: "<<sep<<"Boxsize: "<<sep<<"printNumb: "<<sep<<"Temp: "<<sep<<"Force: "<<endl;
-		ofstreams[i]<<N_part<<" "<<N_space<<" "<<N<<" "<<tFinal<<" "<<dt<<" "<<L<<" "<<printNumb<<" "<<T<<" "<<forceString<<endl;
+		ofstreams[i]<<"#"<<N_part<<" "<<N_space<<" "<<N<<" "<<tFinal<<" "<<dt<<" "<<L<<" "<<printNumb<<" "<<T<<" "<<forceString<<endl;
 	}
 
 
@@ -325,6 +354,7 @@ void initArrays(){
 //	WWPot = (double*) malloc(N*sizeof(double));
 	rhs = (double*) malloc(N*sizeof(double));
 //	WWPot = (double*) malloc(N*sizeof(double));
+	WWFArray = (double*) malloc((N/2+3)*sizeof(double));
 
 	M = (double**) malloc(3*sizeof(double*));
 	for(int i=0;i<3;i++)
@@ -344,7 +374,18 @@ void initArrays(){
 	for(int i=0;i<3;i++) 
 		density[i]= (double*) malloc(NN*sizeof(double));
 	
-	
+	vel = (double***) malloc(NN*sizeof(double**));
+	for(int j=0;j<NN;j++){
+		vel[j] = (double**) malloc(3*sizeof(double*));
+		for(int k=0;k<3;k++)
+			vel[j][k] = (double*) malloc(N_space*sizeof(double));
+	}
+	velAd = (double***) malloc(NN*sizeof(double**));
+	for(int j=0;j<NN;j++){
+		velAd[j] = (double**) malloc(3*sizeof(double*));
+		for(int k=0;k<3;k++)
+			velAd[j][k] = (double*) malloc(N_space*sizeof(double));
+	}
 	power = (double**) malloc(6*sizeof(double*));
 	for(int i=0;i<6;i++) 
 		power[i]= (double*) malloc(printNumb*sizeof(double));
@@ -391,7 +432,7 @@ void initArrays(){
 	}
 }
 
-double getInitial(int a[N_PS]){
+double getInitial(int a[]){
 	double sum=0;
 	int index;
 	int shift;
@@ -408,6 +449,7 @@ void init(){
 	for(int i=0; i<N_space; i++) NN*=N;
 	initArrays();
 	initPrint();
+	if(N_space==1) initWWF();
 //	double sigVext=L*L/6./6.;
 /*	double pos=0;
 	for(int j=0;j<N_PS;j++){		////Anfangszustandgenerierendes externes Potential initialisieren
@@ -438,7 +480,7 @@ void init(){
 		if(i<=N/2) WWPot[i]=0* (1./4.*x*x*x*x-1./3.*x*x*x*(L+L/2.)+L*L/2./2.*x*x)/L/L/Lexp(-i*i*dx*dx);
 		else       WWPot[i]=0*exp(-(i-N)*(i-N)*dx*dx);
 	}*/
-	int a[N_PS];
+	int a[N_PS+1];
 	for(int i=0;i<N_PS;i++) a[i]=0;
 	for(int i=0;i<N_psi;i++){
 //		double pro=1;
@@ -453,9 +495,9 @@ void init(){
 	density2(psi,initial,0,1);
 //	if(N_PS==1) out2.open("psi2aus1.dat");	
 	if(N_space==2){ 
-		relativeout.open(relativefile); 
+		//relativeout.open(relativefile); 
 	//	relativeout<<N_psi<<endl<<((printNumb>=steps)?steps:printNumb)<<endl;;
-		barycenterout.open(barycenterfile);
+		//barycenterout.open(barycenterfile);
 	//	barycenterout<<N_psi<<endl;
 	}
 	currentout<<"#position WWF Vext Entropy"<<endl;
@@ -520,7 +562,7 @@ void analyticfactor(double t){
 	}
 
 	double norm=dx/pow(4*M_PI*t*T,0.5);	
-	int a[N_PS];
+	int a[N_PS+1];
 	for(int j=0; j<N_PS;j++) a[j]=0;
 	double* analtemp = (double*) malloc(NN*sizeof(double));
 
@@ -572,7 +614,7 @@ void densitySum(double* psi,double rho[]){
 }
 
 void density1(double* psi,double rho[],int select){
-	int a[N_PS];
+	int a[N_PS+1];
 	for(int j=0; j<N_PS;j++) a[j]=0;
 	for(int i=0; i<N; i++){
 		 a[select]=i;
@@ -595,7 +637,7 @@ void density1(double* psi,double rho[],int select){
 }
 
 void density2(double* psi,double rho[],int dim1,int dim2){
-	int a[N_PS];
+	int a[N_PS+1];
 	for(int l=0; l<N_PS; l++) a[l]=0;
 	if(N_space==2){
 		if(dim2-dim1<0)cout<<"Fehler in printDensity2"<<endl;
@@ -660,7 +702,7 @@ double residuum(double a[],double b[],int n,int dim){
 	return sum*pow(dx,dim);
 }
 
-double residuumCurrent(int step){
+double residuumCurrent(){
 	double sum=0;
 	if(N_space==1){
 		if(step>1){
@@ -710,7 +752,7 @@ void calcCurrent(double* psi,double*** current){
 	if(N_space==2){
 		for(int i=0;i<N;i++){
 			for(int j=0;j<N;j++){
-				int a[N_PS];
+				int a[N_PS+1];
 				double sum[3][2]={0,0,0,0,0,0};
 				for(int select=0;select<N_part;select++){
 					for(int k=0;k<N_PS;k++)a[k]=0;
@@ -720,7 +762,7 @@ void calcCurrent(double* psi,double*** current){
 						for(int space=0;space<N_space;space++){
 							sum[0][space]+=psi[LinInd(a)]*calcWWF(a,2*select+space,false);
 							if(current==::current) sum[1][space]+=psi[LinInd(a)]*extForce[IndNN(a[2*select],a[2*select+1])][space][(count+1)%2];
-							if(current==::currentAd) sum[1][space]+=psi[LinInd(a)]*diffVext(a,2*select,space);
+							if(current==::currentAd) sum[1][space]+=psi[LinInd(a)]*diffVext(a,select,space);
 							sum[2][space]-=T*diffPsi(psi,a,2*select+space);
 						}
 						if(2*select==0) a[2]++;
@@ -742,7 +784,7 @@ void calcCurrent(double* psi,double*** current){
 		}
 	}else{
 			for(int j=0;j<N;j++){
-				int a[N_PS];
+				int a[N_PS+1];
 				double sum[3]={0,0,0};
 				for(int select=0;select<N_part;select++){
 					for(int k=0;k<N_PS;k++)a[k]=0;
@@ -772,7 +814,7 @@ void calcCurrent(double* psi,double*** current){
 }
 
 double diffVext(int a[],int part,int space){
-	return -(Vext[IndNN(a[part]+1-space,a[part+1]+space)]-Vext[IndNN(a[part]-1+space,a[part+1]-space)])/(2*dx);
+	return -(Vext[IndNN(a[N_space*part]+1-space,a[N_space*part+1]+space)]-Vext[IndNN(a[N_space*part]-1+space,a[N_space*part+1]-space)])/(2*dx);
 }
 
 void calcRelative(double* psi, double relaA[],double baryA[]){
@@ -780,7 +822,7 @@ void calcRelative(double* psi, double relaA[],double baryA[]){
 		cout<<"Fehler in calcRelative"<<endl;
 		return;
 	}
-	int a[N_PS];
+	int a[N_PS+1];
 	int dist[N_space],bary[N_space];
 	for(int i=0;i<NN;i++){
 		relaA[i]=0;
@@ -807,35 +849,37 @@ void calcRelative(double* psi, double relaA[],double baryA[]){
 	}
 }
 
-void calcPower(double* psi,double**vSquared,int step,int printStep){
+void calcPower(double* psi,double**vSquared){
 	double powder = pow(dx,N_PS);
 	for(int k=0; k<6;k++)
 		vSquared[k][printStep]=0;
 	for(int i=1;i<10;i++)
 		squares[i][printStep]=0;
-	int a[N_PS];
+	int a[N_PS+1];
 	for(int select=0;select<N_part;select++){
 		for(int k=0;k<N_PS;k++)a[k]=0;
 		for(int l=0; l<N_psi; l++){
+			double psiTemp=psi[LinInd(a)];
 			double sum[3][N_space];
 			double v[N_space];
 			for(int space=0;space<N_space;space++){
 				v[space]=0;
 				sum[0][space]=calcWWF(a,N_space*select+space,false);
 				if(psi==::psi) sum[1][space]=extForce[IndNN(a[N_space*select],a[N_space*select+1])][space][(count+1)%2];
-				if(psi==::psiAd) sum[1][space]=diffVext(a,N_space*select,space);
-				sum[2][space]=-T*diffPsi(psi,a,N_space*select+space)/psi[LinInd(a)];
+				if(psi==::psiAd) sum[1][space]=diffVext(a,select,space);
+				sum[2][space]=-T*diffPsi(psi,a,N_space*select+space)/psiTemp;
 				for(int k=0; k<3;k++)
 					v[space]+=sum[k][space];	
 				for(int i=0;i<9;i++){
-						squares[i+1][printStep]+=sum[i/3][space]*sum[i%3][space]*psi[LinInd(a)];
+						squares[i+1][printStep]+=sum[i/3][space]*sum[i%3][space]*psiTemp;
 				}
 			}
 			for(int k=0; k<3;k++){
 				for(int space=0;space<N_space;space++)
-					vSquared[k+1][printStep]-=0.5*v[space]*psi[LinInd(a)]*sum[k][space];
+					vSquared[k+1][printStep]-=0.5*v[space]*psiTemp*sum[k][space];
 				
 			}
+			
 			combi(a);	
 		}
 	}
@@ -851,26 +895,37 @@ void calcPower(double* psi,double**vSquared,int step,int printStep){
 
 }
 
-double diffDens(int x,int y, int dir,int step){
+void calcVel(double*** vel){
+	for(int i=0;i<NN;i++){
+		for(int k=0;k<3;k++){
+			for(int dir=0;dir<N_space;dir++){
+				if(vel==::velAd) vel[i][k][dir]=currentAd[i][k][dir]/density[step%3][i];
+				if(vel==::vel) vel[i][k][dir]=current[i][k][dir]/density[step%3][i];
+			}
+		}
+	}
+}
+
+double diffDens(int x,int y, int dir){
 	return (density[step%3][IndNN(x+1-dir,y+dir)] - density[step%3][IndNN(x-1+dir,y-dir)])/2/dx;
 }
 
 
-void dani(int step,int printStep){
+void dani(){
 	double sum=0;
 	for(int x=0;x<N;x++){
 		int Ny=N;
 		if(N_space==1) Ny=1;
 		for(int y=0;y<Ny;y++){
 			for(int space=0;space<N_space;space++)
-				sum+=-T*sumCurrent(x,y,space)*diffDens(x,y,space,step);
+				sum+=-T*sumCurrent(x,y,space)*diffDens(x,y,space);
 		}
 	}
 	daniA[0][printStep]=step*dt;
 	daniA[1][printStep]=sum*pow(dx,N_space);
 }
 
-void calcExtPower(int step, int printStep){
+void calcExtPower(){
 	double powder = pow(dx,N_space);
 	double sum=0,sum1=0;
 	for(int x=0;x<N;x++){
@@ -889,37 +944,64 @@ void calcExtPower(int step, int printStep){
 	
 }
 
-void calcDiss(int step,int printStep){
-		dissipation[0][printStep]=step*dt;
-		dissipation[1][printStep]=power[5][printStep]-freeEnergy[2][printStep]+extPower[1][printStep]-extPower[2][printStep];//-(freeEnergy[3][printStep]-freeEnergy[3][printStep-2])/(dt*steps/printNumb*2.);
-		dissipation[2][printStep]=0;
-		double curr;
-		for(int i=0;i<NN;i++){
-			for(int space=0;space<N_space;space++){
-				curr=sumCurrent(i%N,i/N,space);
-				dissipation[2][printStep]+=curr*curr/density[(step)%3][i];
-			}
+void calcDiss(){
+	dissipation[0][printStep]=step*dt;
+	dissipation[1][printStep]=power[5][printStep]-freeEnergy[2][printStep]+extPower[1][printStep]-extPower[2][printStep];//-(freeEnergy[3][printStep]-freeEnergy[3][printStep-2])/(dt*steps/printNumb*2.);
+	dissipation[2][printStep]=0;
+	double curr;
+	for(int i=0;i<NN;i++){
+		for(int space=0;space<N_space;space++){
+			curr=sumCurrent(i%N,i/N,space);
+			dissipation[2][printStep]+=curr*curr/density[(step)%3][i];
 		}
-		dissipation[2][printStep]*=pow(dx,N_space)/2.;
-		
+	}
+	dissipation[2][printStep]*=pow(dx,N_space)/2.;
+
 }
+
 double calcdtVext(int x, int y, double t){
 	double r=0;
-	switch(forceInt){
-		case 2:
-			r=2*M_PI/tFinal*sin(2*M_PI*(x/L+4./1.*t/tFinal));
-			break;
-		case 3:
-			x-=L/4.+L*t/tFinal;
-			r=-2*x*L/tFinal*exp(-x*x);
-			break;
+	if(N_space==1){
+		switch(forceInt){
+			case 2:
+				r=extForceFactor*speedRPS*M_PI/tFinal*sin(2*M_PI*(x/L+speedRPS/1.*t/tFinal));
+				break;
+			case 3:
+				int x0=x-L/4.-speedRPS*L*t/tFinal;
+				for(int k=-1;k<=1;k++){
+					x=x0+k*L;
+					r+=2*extForceFactor*x*exp(-x*x-y*y)*speedRPS*L/tFinal;
+				}
+				break;
+		}
+	}else{
+		switch(forceInt){
+			case 2:
+				r=extForceFactor*speedRPS*M_PI/tFinal*sin(2*M_PI*(x/L+speedRPS/1.*t/tFinal));
+				break;
+			case 3:
+				int x0=x-L/4.-speedRPS*L*t/tFinal;
+				int y0=y-L/4.-speedRPS*L*t/tFinal;
+				for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+					x=x0+k*L;
+					y=y0+k*L;
+					r+=2*extForceFactor*x*exp(-x*x-y*y)*speedRPS*L/tFinal;
+					r+=2*extForceFactor*y*exp(-x*x-y*y)*speedRPS*L/tFinal;
+				}
+				break;	
+		}
 	}
 	if(VextTimeDependent && r==0)
-		for(int i=0;i<10;i++)
-		cout<<"warning dV(t)/dt=0!"<<endl;
+		for(int i=0;i<5;i++)
+			cout<<"warning dV(t)/dt=0!"<<endl;
 	return r;
 }
+
 int main(){
+	if(forceInt>=2){
+		VextTimeDependent=true;
+		speedRPS=0;
+	}
 	init();
 	double psi0=intPsi(psi);
 	double baryA[NN],relaA[NN];
@@ -931,15 +1013,15 @@ int main(){
 
 	{calcF(0);calcF(0);}
 	cout<<"N Space: "<<N_space<<endl<<"N Part: "<<N_part<<endl;
-	for(int i=0;i<steps;i++){
-		densitySum(psi,density[(i)%3]);   // do not change this order
-		resCurr=residuumCurrent(i);       // residuumCurrent needs old current and new density
+	for(step=0;step<steps;step++){
+		densitySum(psi,density[(step)%3]);   // do not change this order
+		resCurr=residuumCurrent();       // residuumCurrent needs old current and new density
 		calcCurrent(psi,current);
 		//		printPsi(density[i%3],N,densityout);
-		if(i%int(ceil(steps*1./printNumb))==0) {
-			cout<<(100.*i)/steps<<"%"<<endl;
+		if(step%int(ceil(steps*1./printNumb))==0) {
+			cout<<(100.*step)/steps<<"%"<<endl;
 			if(superAdBool){
-				doSuperAd(i,i*printNumb/steps);
+				doSuperAd();
 				cout<<"Resdiuum SuperAdiabatic: \t" << residuum(psi,psiAd,N_psi,N_PS)<<endl;
 				if(N_PS<=2||printPsiBool){ 
 					printPsi(psiAd,N_psi,psiAdout); 
@@ -956,10 +1038,13 @@ int main(){
 				if(printCurrentBool){
 					calcCurrent(psiAd,currentAd);
 					printCurrent(currentAd,currentAdout);
-					printSuperCurr(superCurrout);
 				}
 				if(printPowerBool){
-					calcPower(psiAd,powerAd,i,i*printNumb/steps);
+					calcPower(psiAd,powerAd);
+				}
+				if(printVelBool){
+					calcVel(velAd);
+					printCurrent(velAd,velAdout);
 				}
 			}
 
@@ -967,7 +1052,7 @@ int main(){
 				printPsi(psi,N_psi,psiout); 
 			}
 			if(printDensityBool){
-				printPsi(density[i%3],NN,densityout,i*dt);
+				printPsi(density[step%3],NN,densityout);
 			}
 			if(printRelativeBool){
 				calcRelative(psi,relaA,baryA);
@@ -978,12 +1063,16 @@ int main(){
 				printCurrent(current,currentout);
 				cout<<"Residuum Current: "<<resCurr<<endl;
 			}
+			if(printVelBool){
+				calcVel(vel);
+				printCurrent(vel,velout);
+			}
 			if(printPowerBool){
-				calcExtPower(i,i*printNumb/steps);
-				calcPower(psi,power,i,i*printNumb/steps);
+				calcExtPower();
+				calcPower(psi,power);
 			}
 			if(analyticBool){
-				analyticfactor(i*dt); //hier noch +1? glaube nicht weil doStep() jetzt weiter unten ist
+				analyticfactor(step*dt); 
 				double div=1./intPsi(anal);
 				cout<<"Analytic: \t" << 1.-intPsi(anal)<<endl;
 				for(int j=0;j<N_psi;j++) anal[j]*=div;
@@ -991,23 +1080,32 @@ int main(){
 				cout<<"Resdiuum Analytic: \t" << residuum(psi,anal,N_psi,N_PS)<<endl;
 			}
 			if(daniBool){
-				dani(i,i*printNumb/steps);
+				dani();
+			}
+
+			if(superAdBool){
+				if(printCurrentBool){
+					printSuperCurr(superCurrout);
+				}
 			}
 			double psi1=intPsi(psi); 
 			cout<<"Deviation: \t"<<(psi1-psi0)/psi0<<endl;
-			calcDiss(i,i*printNumb/steps);
+			calcDiss();
+			printStep++;
 		}
-		doStep(i*dt);
+
+		doStep(step*dt);
 	}
-	cout<<"Free Energy deviation: "<< residuumFreeEnergy()<<endl;
 	if(printPowerBool){
 		if(superAdBool)
 			printTime(powerAd,powerAdout);
 		printTime(power,powerout);
 		printTime(squares,squaresout);
 	}
-	if(superAdBool)
+	if(superAdBool){
 		printTime(freeEnergy, timeout);
+		cout<<"Free Energy deviation: "<< residuumFreeEnergy()<<endl;
+	}
 
 	if(printDisBool)
 		printTime(dissipation,dissipationout);
