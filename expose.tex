@@ -1,0 +1,217 @@
+\documentclass[a4paper]{article}
+\usepackage[a4paper]{geometry}
+\usepackage[utf8]{inputenc}
+\fontencoding{T1}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage[english]{cleveref}
+\usepackage{cleveref}
+\usepackage{graphicx}
+\renewcommand\vec[1]{\mathbf{#1}}
+\usepackage[super]{nth}
+
+\author{Nico Christian Xaver Stuhlmüller}
+\title{Expos\'e}
+
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\thispagestyle{empty}
+\cleardoublepage
+
+\section{Introduction}
+\setcounter{page}{1}
+When studying Brownian Particles via simulation one usually uses density-functional-theory (DFT). This however has the disadvantage of only working in equilibrium. When one abstracts DFT to being able to show nonequilibrium dynamics, one gets dynamical-density-functional-theory (DDFT), which assumes the internal forces in the nonequilibrium system are equal to these in an adiabatic system with the same one-body-density. This assumption is only an approximation. In order of getting the real nonequilibrium dynamics one has to use power-functional-theory (PFT) \cite{MS100}.
+The problem with PFT is that the central element, the power-functional $ R_t $ is unknown. In previous work Brownian particles were simulated via Brownian dynamics, which has the advantage of being easy to implement, but at the cost of only being able to calculate specific parts of $ R_t $, namely the deterministic ones. Values origin from the entropic behavior state a challenge for BD. For these reasons one can take a different approach, by simulating in configuration space.
+
+With this method one has to solve the Smoluchowski-equation, which is a partial differential equation, describing the dynamics of Brownian particles in configuration space. Where  $\vec{r}^N=\left( \vec{r}_1,\vec{r}_2, \dots,\vec{r}_N \right) $ denotes a configuration, with $\vec{r}_i$ being the coordinate of particle $i$. The Smoluchowski-equation originates from the Fokker-Planck-equation, which is derived from probability-conservation in phase space. \cite{Tobi}. 
+
+\section{Basic Equations}
+Smoluchowski's equation:
+\begin{equation}\label{eq:smol}
+	\frac{\partial \psi}{\partial t} = - \sum_i \nabla_i \cdot \vec{v}_i \psi
+\end{equation}
+is the PDE, which is being solved numerically. $\psi \left( \vec{r}^N ,t \right)$ denotes the probability-density at the configuration $\vec{r}^N$ and time $t$,	$\nabla_i$ denotes the differentiation with respect to the $i$-th particle coordinate $\vec{r}_i$, and $\vec{v}_i$ denotes its velocity. 
+In an overdamped system inertia is negligible and therefore the velocity $\vec{v}_i$ of particle $i$ can be written as:
+\begin{equation}\label{eq:vel}
+	\gamma \vec{v}_i = - \nabla_i U\left( \vec{r}^N \right) + \vec{F}_\text{ext} \left( \vec{r}_i ,t \right) - k_B T \nabla_i \ln \psi \left( \vec{r}^N ,t \right)
+\end{equation}
+where $\gamma$ denotes the friction coefficient, $U\left( \vec{r}^N \right)$ denotes the total energy originating from particle particle interaction, $\vec{F}_\text{ext}$ denotes the external force, $k_B$ is Boltzmann's constant and $T$ is the Temperature of the System.
+Using the velocity and the Dirac-delta one can simply write the one-body current $\vec{J}$ as:
+\begin{equation}
+	\vec{J}\left( \vec{r}, t \right)=\left \langle \sum_i \vec{v}_i\delta\left( \vec{r}_i(t)-\vec{r}(t) \right) \right \rangle
+	\label{eq:current}
+\end{equation}
+And in similar fashion the one-body density $\rho$ as:
+\begin{equation}
+	\rho\left( \vec{r}, t \right)=\left \langle \sum_i \delta\left( \vec{r}_i(t)-\vec{r}(t) \right) \right \rangle
+	\label{eq:density}
+\end{equation}
+Where $\left\langle \cdot \right\rangle = \int d \vec{r}^N \cdot \psi $ denotes an average over all configurations.
+
+\section{Numerics}
+\subsection{Integration of the PDE}
+As Smulochowski's equation can only be solved analyticly in the special case without paticle particle interaction and an external force which is constant, one typically solves it numerically on a grid with periodic boundary conditions. The number of gridpoints explodes when rising the particle number. As one has to solve $\mathcal{O}(2n^{d-1})$ linear equation systems in each timestep, where $n$ denotes the spaceial resolution and $d$ denotes the dimensionality of the configuration space. This numerical overhead limits the number of particles one can simulate to four particles in one dimension or two particles in two dimension, with a spacial resolution of 100 gridpoints in each dimension. In order to solve Smulochowski's equation a mix of explicit and implicit schemes gives the best relsults, as it combines the best of both schemes: it is maintains small-scale features and is allways stable \cite{numericalRecepies}.In addition the algorithm is second order accurate in space and time. The implicit part leads to linear equation systems that have to be solved each timestep \cite{tobi}. Fortuantly they have a tridigonal shape, as the choosen differentiation scheme couples every point on the grid to its two neighbours. The periodic boundary conditions introduce to additional items at the corners of the matrix. Solving such a linear equation system is very fast as it scales with  $\mathcal{O}(2n)$, where $n$ is the spacial resolution \cite{numericalRecepies}. This whole scheme only works in one dimention, so one has to introduce operator splitting, which allows to split the differentiation operators so they can be solved seperatly \cite{numericalRecepies}. This allows to handle the diffusive and the drift part seperatly from each other and the different configuration space dimentions, which can be other particles or spacial dimentions, aswell. Combining everything one has to solve $4n^{d-1}$ linear equation systems each timestep. 
+\subsection{Superadiabatic Construction}
+
+\subsection{Tests}
+Many tests were implemented to check the credibility of our results. For the first test we evaluate the conservation of probability by integrating the initial and final cofiguration and comparing the difference, which yields a relative error of $10^{-12}$.
+As previously mentioned one can solve Smulochowski's equation analyticly in the case of free diffusion, when comparing the analytic vs. the numerical solution the biggest error happens in the beginning when $\psi$ is changing the most. Here the largest error on any gridpoint is in \nth{4} significant figure. And  the ablolute value of the difference between the analytical and numerical solution integrated over the whole simmulation box is also $10^{-4}$.  
+To test self consistency we are looking over the conitinuity equation:
+\begin{equation}
+	\dot{\rho}=- \nabla \vec{J},
+	\label{eq:coninuity}
+\end{equation}
+which also results in an integrated error with $\mathcal{O} (10^{-4})$.  
+
+
+\section{Calculated Variables}
+In the introduction it was mentioned that through simulating Smoluchowski's-equation rather than Brownian dynamics, it is possible to calculate new quantities. One of these is the value of the power functional evaluated at its minimum at time $t$:
+\begin{equation}
+	R^0_t=\left\langle \frac{\gamma}{2} \sum_i \vec{v}_i^2 \right\rangle
+	\label{eq:powerfunctional}
+\end{equation}
+Furthermore it can be split into its three parts: internal external and entropic, by inserting \cref{eq:vel} once:
+\begin{equation}
+	R^0_{t,\text{internal}}=\left\langle \frac{1}{2} \sum_i \vec{v}_i \left( - \nabla_i U\left( \vec{r}^N \right)  \right) \right\rangle
+	\label{eq:powerint}
+\end{equation}
+\begin{equation}
+	R^0_{t,\text{external}}=\left\langle \frac{1}{2} \sum_i \vec{v}_i  \vec{F}_\text{ext} \left( \vec{r}_i ,t \right)  \right\rangle
+	\label{eq:powerext}
+\end{equation}
+\begin{equation}
+	R^0_{t,\text{entropic}}=\left\langle \frac{1}{2} \sum_i \vec{v}_i \left(  - k_B T \nabla_i \ln \psi \left( \vec{r}^N ,t \right) \right) \right\rangle
+	\label{eq:powerent}
+\end{equation}
+It is also possible to calculate the power dissipated at time $t$ by subtraction the change of the temporal derivative of the free energy:
+\begin{equation}
+	P(t)=R^0_t-\dot{F}(t)
+	\label{eq:dissipation}
+\end{equation}
+Which itself can be split into the dissipation of an ideal gas $P_\text{ideal}$, and an excess part $P_\text{excess}$ with the ideal part being:
+\begin{equation}
+	P_\text{ideal}(t)=\int d \vec{r} \frac{ \gamma}{2} \frac{\left( \vec{J}\left( \vec{r}, t \right) \right)^2}{ \rho\left( \vec{r}, t \right)} 
+	\label{eq:dissipationideal}
+\end{equation}
+Then the excess part, which is the power dissipated through the interaction between particles is:
+\begin{equation}
+	P_\text{excess}(t)=P(t)- P_\text{ideal}(t) 
+	\label{eq:dissipationexess}
+\end{equation}
+
+\section{Results}
+\begin{figure}
+	\centering
+	\include{./plots/dissipation}
+	\caption{Dissipation}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\include{./plots/dissipationlog}
+	\caption{Dissipation}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\include{./plots/freeEnergy}
+	\caption{free energy}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\include{./plots/power}
+	\caption{power}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\include{./plots/powerlog}
+	\caption{power}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\include{./plots/superCurr}
+	\caption{superCurr}
+\end{figure}
+\begin{figure}
+	\centering
+	\include{./plots/squares}
+	\caption{squares}
+\end{figure}
+
+
+\bibliography{expose}
+\bibliographystyle{plain}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section{Einleitung}
+Die Smoluchowski-Gleichung beschreibt überdämpfte Drift-Diffusions-Vorgänge im Konfigurationsraum. Sie ist die Gleichung mit deren Hilfe im Rahmen dieser Bachelorarbeit zentrale Größen der Leistungs-Funktional-Theorie berechnet und interpretiert werden.
+Wobei für die Teilchengeschwindigkeit $\vec{v}_i$ aus der Kraftbilanz mit Überdämpfung $m \ddot{\vec{r}}_i \approx 0$ folgt:
+wobei $ \vec{r}^N $ eine Konfiguration, $ \psi \left( \vec{r}^N ,t \right) $ die Verteilungsfunktion, $ \nabla_i $ der Gradient bezüglich der $ i$-ten Teilchenposition $ \vec{r}_i $ , $ U\left( \vec{r}^N \right) $ die gesammte Wechselwirkungsenergie, und $ k_B $ die Bolzmann-Konstante und $ T $ die Temperatur beschreibt.
+$\left\langle \cdot \right\rangle$ ist der thermodynamische Mittelwert $\int \cdot \psi d \vec{r}^N$.
+
+\section{berechnete Größen}
+Die Simmulation auf dem Konfigurationsraum ermöglicht die Berechnung aller systemrelevanten Größen. 
+Dies Umfasst unteranderem die Einteilchendichte:
+\begin{equation}
+	\rho=\left\langle \sum_i \delta\left( \vec{r}_i\left( t \right) \right) \right\rangle
+	\label{density}
+\end{equation}
+und den Einteilchenstrom: 
+\begin{equation}\label{curr}
+\vec{J}\left( \vec{r},t \right)=\left\langle \sum_{i}\vec{v}_i\delta\left( \vec{r}_i\left( t \right)-\vec{r} \right) \right\rangle
+\end{equation}
+zerlegt in seine drei Komponenten entropisch, intern und extern:
+\begin{equation} \label{currEnt}
+	\vec{J}_{\text{ent}}=\left\langle D \sum_i \nabla_i \ln \psi \left( \vec{r}^N \right)\right\rangle \\
+\end{equation}
+\begin{equation} \label{currInt}
+	\vec{J}_{\text{int}}=\left\langle -\frac{1}{\gamma} \sum_i \nabla_i \Phi \left( \vec{r}^N \right)\right\rangle \\
+\end{equation}
+\begin{equation} \label{currExt}
+	\vec{J}_{\text{ext}}=\left\langle -\frac{1}{\gamma} \sum_i \nabla_i V_{ext} \left( \vec{r}_i \right)\right\rangle
+\end{equation}
+Mit Hilfe dieser beiden Größen kann man die Kontinuitätsgleichung:
+\begin{equation}
+	\dot{\rho}\left( \vec{r} ,t \right)=- \nabla \cdot \vec{J}\left( \vec{r} ,t \right)
+	\label{coninuity}
+\end{equation}
+testen, welche in der Simmulation im vollen Nichtgleichgewicht eine Abweichung von ca. $10^{-3}$ aufweißt welche im Gleichgewicht auf ca. $10^{-4}$ abfällt.  
+Die Ableitungen wurden numerisch mittles zentraler Ableitung durchgeführt.
+
+%	Strom
+%	Dichte
+%	n-Teilchen-Dichte
+%	P(t)
+%	P_\text{id}
+%	P_\text{exc}
+%	R_0(t)
+%	Freie Energie
+%	V_ad
+
+
+\end{document}
