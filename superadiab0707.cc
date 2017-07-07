@@ -76,14 +76,16 @@ void calcFreeEnergy(){
 }
 
 double residuumFreeEnergy(){
-	double sum=0;
+	double sum=0,sum1=0;
 	for(int i=1;i<printNumb-1;i++){
 		freeEnergy[4][i]=(freeEnergy[1][i+1]-freeEnergy[1][i-1])/(freeEnergy[0][i+1]-freeEnergy[0][i-1]);
 		sum+=fabs(freeEnergy[2][i]-freeEnergy[4][i])*(freeEnergy[0][i+1]-freeEnergy[0][i-1]);
+		sum1+=fabs(freeEnergy[2][i])*(freeEnergy[0][i+1]-freeEnergy[0][i-1]);
 	}
+	
 	freeEnergy[4][0]=(freeEnergy[1][1]-freeEnergy[1][0])/(freeEnergy[0][1]-freeEnergy[0][0]);
 	freeEnergy[4][printNumb-1]=(freeEnergy[1][printNumb-1]-freeEnergy[1][printNumb-2])/(freeEnergy[0][printNumb-1]-freeEnergy[0][printNumb-2]);
-	return sum;
+	return sum/sum1;
 }
 
 int factorial(int n){

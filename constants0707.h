@@ -24,6 +24,7 @@ extern ofstream& superCurrout;
 extern ofstream& squaresout;
 extern ofstream& velout;
 extern ofstream& velAdout;
+extern ofstream& superPowerout;
 
 extern const double sigWWPot;
 extern const double eps;

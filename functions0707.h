@@ -46,6 +46,7 @@ void dani();
 void printSuperCurr(ofstream &superCurrout);
 void calcVel(double*** vel);
 double powder(int exp);
+void printSuperPower(ofstream &superPowerout);
 
 #endif
 
