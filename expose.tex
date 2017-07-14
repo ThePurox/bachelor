@@ -59,14 +59,20 @@ The function
 	\hat{R}\left( \vec{r}^N,\vec{v}^N,t \right) = \sum_{i} \left( \frac{ \gamma}{2} \vec{v}_i - \vec{F}_i^{\mathrm{tot}} \right) \cdot \vec{v}_i + \sum_{i} \dot{V}_{\mathrm{ext}} 
 	\label{eq:Rhat}
 \end{equation}
-delivers the total power the system is using at time t. %Where $\vec{v}_i=\vec{v}_i\left( \vec{r}^N,t \right)$ denotes a trial velocity.
+delivers the total power the system is using at time $t$. %Where $\vec{v}_i=\vec{v}_i\left( \vec{r}^N,t \right)$ denotes a trial velocity.
 \cite{MS100} showed that one can construct a functional out of it by averaging over over the distribution function. %They also demonstrated that when derivated with respect to the velocity at a fixed configuration $\psi$ 
 After inserting \cref{eq:vel} one gets the power functional
 \begin{equation}
-	R_t\left[ \psi,\vec{v}^N \right]=- \frac{ \gamma}{2} \int{} d \vec{r}^N \psi\left( \vec{r}^N,t \right) \sum_i \vec{v}_i\left( \vec{r},t \right)^2 + \int{} d \vec{r}^N \psi \sum_i \dot{V}_{\mathrm{ext}}\left( \vec{r}_i,t \right)
+	R_t\left[ \psi,\vec{v}^N \right]=- \frac{ \gamma}{2} \int{} d \vec{r}^N \psi\left( \vec{r}^N,t \right) \sum_i \vec{v}_i\left( \vec{r},t \right)^2 + \int{} d \vec{r}^N \psi \sum_i \dot{V}_{\mathrm{ext}}\left( \vec{r}_i,t \right).
 	\label{eq:R}
 \end{equation}
-
+This is the way we calculate it, as we are simmulating in phase space and have the full $\psi$ and $\vec{v}^N$. Via variation with respect to $\vec{v}^N$ one can show that \cref{eq:R} is the real physical solution. 
+The many body expression \cref{eq:R} is useless for more than a hand full of particles, as one can not calculate $\psi(t)$ in any meaningful way if the dimensionality of phase space exceeds 4. Luckily \cite{MS100} showed that %one can reduce the variation with respect to $\vec{v}^N$ to a variation with respect to the one body current $\vec{J}(\vec{r},t)$. This new expression is usefu
+there is an eqiuvalent one body functional $\mathcal{R_t}$, which one gets by minimizing $R_t$ with the constraint of resulting in a $\Psi$ that recovers the real one body density and one body current at time $t$. With the help of some tricks one can eliminate the many body minimization which verb the one body variational principle
+\begin{equation}
+	\frac{\delta \mathcal{R}_t\left[ \rho,\vec{J} \right]}{\delta \vec{J}(\vec{r},t)} = 0
+	\label{<+label+>}
+\end{equation}<++>
 
 \section{Numerics}
 \subsection{Integration of the PDE}
