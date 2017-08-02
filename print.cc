@@ -13,7 +13,7 @@ using namespace std;
 
 void printPsi(double func[],int n,ofstream &out){
 	if(n==N){
-		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i-int(n*speedRPS*step*dt/tFinal)+int(speedRPS+1)*n)%n]<<endl;	
+		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i+1*int(n*speedRPS*step*dt/tFinal)+int(speedRPS+1)*n)%n]<<endl;	
 		out<<endl<<endl;
 		return;
 	}
@@ -134,7 +134,7 @@ void printRelative(){
 void printWWF(){
 	ofstream wwfout1("WWF1.dat");
 	ofstream wwfout2("WWF2.dat");
-	ofstream wwfout3("WWF3.dat");
+	ofstream wwfout3("/home/nico/data/WWF3"+to_string(step));
 	int a[N_PS+1];
 	for(int i=0;i<N_PS;i++) a[i]=0;
 	for(int i=0;i<N_psi;i++){
@@ -149,10 +149,12 @@ void printWWF(){
 		combi(a);
 	}
 	for(int i=0;i<N_PS;i++) a[i]=0;
-	for(int i=0;i<N;i++){
-		a[0]=i;
-		wwfout3<<i*dx<<"\t"<<calcWWF(a,1,false)<<endl;
+	for(int i=0;i<NN;i++){
+		a[0]=i%N;
+		a[1]=i/N;
+		wwfout3<<i%N*dx<<"\t"<<i/N*dx<<"\t"<<calcWWF(a,N_space,false)<<"\t"<<calcWWF(a,(N_space+1)%N_PS,false)<<endl;
 	}
+	wwfout3.close();
 }
 
 void printCurrent(double*** current,ofstream &currentout){
@@ -195,18 +197,26 @@ void printSuperCurr(ofstream &superCurrout){
 	superCurrout<<endl;
 }
 
+void printSuperPower(ofstream &superPowerout){
+	double sum=0;
+	for(int i=0;i<NN;i++)
+		for(int s=0;s<N_space;s++)
+			sum+=sumCurrent(i%N,i/N,s)*(current[i][0][s] - currentAd[i][0][s])/density[step%3][i];
+	superPowerout<<step*dt<<"\t"<<sum*powderNN<<endl;
+}
+
 void printTime(double**arr,ofstream &file){
 	int col=0;
 	if(arr==::power||arr==::powerAd)
 		col=6;
 	if(arr==::freeEnergy)
-		col=5;
+		col=6;
 	if(arr==::dissipation)
 		col=3;
 	if(arr==::extPower)
-		col=3;	
+		col=5;	
 	if(arr==::daniA)
-		col=2;	
+		col=7;	
 	if(arr==::squares)
 		col=10;	
 	for(int i=0;i<printNumb;i++){

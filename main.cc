@@ -12,37 +12,50 @@ using namespace std;
 
 #include "constants.h"
 
-const int N_part=1;
-const int N_space=2;
+const int N_part=2;
+const int N_space=1;
 const int N=50;
-const double tFinal=5e-2;//*sigWWPot^2*gamma/eps
+const double tFinal=10e-0;//*sigWWPot^2*gamma/eps
 const double dt=5e-3;
 const double T=00.40;
 const double L=10;//*sigWWPot
-const int printNumb=10;
-double speedRPS=0.5;
+const int printNumb=200;
+double speedRPS=0;
+double gausspeed=6;
+double period=4;
 
+bool VextTimeDependent=false;
 
-bool VextTimeDependent;
+const bool WWFBool=true;
+const bool gaussWW=true;
+const double sigWWF=1.5;
+
+const bool homoBool=false;
+
 const bool superAdBool=true;
 const bool analyticBool=false;
 
 const bool printPsiBool=false;
 const bool printDensityBool=true;
 const bool printCurrentBool=true;
-const bool printRelativeBool=false;
+const bool printRelativeBool=true;
 const bool printWWFBool=false;
 const bool printPowerBool=true;
 const bool printDisBool=true;
 const bool printExtPowerBool=true;
-const bool daniBool=false;
+const bool daniBool=true;
 const bool printVelBool=true;
 
-int forceInt=0;
+int forceInt=4;
+const double extForceFactor=1;
+
 /* 0 = No Force
+ * -1 = Sheer sine
  * 1 = BavarianHat
- * 2 = Sine
- * 3 = NoSlapGauss
+ * 2 = Gauss + Constant
+ * 3 = Sine
+ * 4 = NoSlapGauss
+ * 5 = Gauss time dependent standard deviation
  */
 int gaussForceScan=1;
 
@@ -73,7 +86,8 @@ vector<string> filenames={
 	"superCurr",
 	"squares",
 	"velocity",
-	"velocityAd"
+	"velocityAd",
+	"superPower"
 };
 
 vector<ofstream> ofstreams(filenames.size());
@@ -113,12 +127,13 @@ ofstream& superCurrout=ofstreams[23];
 ofstream& squaresout=ofstreams[24];
 ofstream& velout=ofstreams[25];
 ofstream& velAdout=ofstreams[26];
+ofstream& superPowerout=ofstreams[27];
 
 
 const double sigWWPot=1;
 const double eps=1;
-const double extForceFactor=1e-0;
-const double extPotFactor0=1e+0;
+const double extPotFactor0=1;
+const double WWFFactor=1;
 const int overscan=1;
 long count=0;
 const int N_PS=N_space*N_part;
@@ -135,6 +150,8 @@ int step;
 int printStep=0;
 double powderPS;
 double powderNN,dx2,dx3,dx4;
+double sigWWF2=sigWWF*sigWWF;
+double sigWWF4=sigWWF*sigWWF*sigWWF*sigWWF;
 
 double* psi;
 double* initial;
@@ -201,14 +218,19 @@ double powder(int exp){
 }
 
 void calcF(double t){
+	double x0,y0,xx,yy;
 	for(int i=0;i<N;i++){
-		double x=(i)*dx;//-L/2;
+		double x=(i)*dx;//+dx/2;//-L/2;
 		if(N_space==2){
 			for(int j=0;j<N;j++){
 				double y=(j)*dx;
 				//extForce[IndNN(i,j)][0][count%2]=0+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L*(L*L*y*y-2*y*y*y*L+y*y*y*y)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
 				//extForce[IndNN(i,j)][1][count%2]=0+extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
 				switch(forceInt){
+					case -1:
+						extForce[IndNN(i,j)][0][count%2]=extForceFactor*M_PI/L*sin(2*M_PI*y/L);
+						extForce[IndNN(i,j)][1][count%2]=0;
+						break;
 					case 0:
 						extForce[IndNN(i,j)][0][count%2]=0;
 						extForce[IndNN(i,j)][1][count%2]=0;
@@ -218,21 +240,58 @@ void calcF(double t){
 						extForce[IndNN(i,j)][1][count%2]=extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;
 						break;
 					case 2:
-						extForce[IndNN(i,j)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+speedRPS/1.*t/tFinal));
+						x0=x-L/4.;
+						y0=y-L/4.;
+						extForce[IndNN(i,j)][0][count%2]=-speedRPS*L/tFinal;
+						extForce[IndNN(i,j)][1][count%2]=-speedRPS*L/tFinal;
+						for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+							xx=x0+k*L;
+							yy=y0+k*L;
+							extForce[IndNN(i,j)][0][count%2]+=-2*extForceFactor*xx/sigVext0*exp((-xx*xx-yy*yy)/sigVext0);
+							extForce[IndNN(i,j)][1][count%2]+=-2*extForceFactor*yy/sigVext0*exp((-xx*xx-yy*yy)/sigVext0);
+						}
+						break;	
+					case 3:
+						extForce[IndNN(i,j)][0][count%2]=extForceFactor*period*M_PI/L*sin(2*M_PI*period*(x/L-speedRPS/1.*t/tFinal));
 						extForce[IndNN(i,j)][1][count%2]=0;//extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+2./1.*t/tFinal));
 						break;
-					case 3:
-						int x0=x-L/4.-speedRPS*L*t/tFinal;
-						int y0=y-L/4.-speedRPS*L*t/tFinal;
+					case 4:
+						x0=x-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
+						y0=y-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 						extForce[IndNN(i,j)][0][count%2]=0;
 						extForce[IndNN(i,j)][1][count%2]=0;
 						for(int k=-gaussForceScan;k<=gaussForceScan;k++){
-							x=x0+k*L;
-							y=y0+k*L;
-							extForce[IndNN(i,j)][0][count%2]+=-2*extForceFactor*x*exp(-x*x-y*y);
-							extForce[IndNN(i,j)][1][count%2]+=-2*extForceFactor*y*exp(-x*x-y*y);
+							xx=x0+k*L;
+							yy=y0+k*L;
+							extForce[IndNN(i,j)][0][count%2]+=-2*extForceFactor*xx/sigVext0*exp((-xx*xx-yy*yy)/sigVext0);
+							extForce[IndNN(i,j)][1][count%2]+=-2*extForceFactor*yy/sigVext0*exp((-xx*xx-yy*yy)/sigVext0);
 						}
 						break;	
+					case 6:
+						x0=x-L/2.;
+						y0=y-L/2.;
+						extForce[IndNN(i,j)][0][count%2]=0;
+						extForce[IndNN(i,j)][1][count%2]=0;
+						xx=x0;
+						yy=y0;
+						extForce[IndNN(i,j)][0][count%2]+=4*extForceFactor*xx*exp((-xx*xx-yy*yy));
+						extForce[IndNN(i,j)][1][count%2]+=4*extForceFactor*yy*exp((-xx*xx-yy*yy));
+						break;	
+
+
+					case 5:
+						x0=x-L/4.;
+						y0=y-L/4.;
+						double stdev = (1+0.7*sin(2*M_PI*gausspeed*t/tFinal))*sigVext0;
+						extForce[IndNN(i,j)][0][count%2]=0;
+						extForce[IndNN(i,j)][1][count%2]=0;
+						for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+							xx=x0+k*L;
+							yy=y0+k*L;
+							extForce[IndNN(i,j)][0][count%2]+=-2*extForceFactor*xx/stdev*exp((-xx*xx-yy*yy)/stdev);
+							extForce[IndNN(i,j)][1][count%2]+=-2*extForceFactor*yy/stdev*exp((-xx*xx-yy*yy)/stdev);
+						}
+						break;
 						//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
 						//extForce[IndNN(i,0)][0][count%2]=0/*-2*x*exp(-x*x);-2*(0.5-t/tFinal)*/+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
 				}
@@ -240,6 +299,9 @@ void calcF(double t){
 			}
 		}else{
 			switch(forceInt){
+				case -1:
+					while(true)
+					cout<<"Sheering is not availible in 1 spacial dimension"<<endl;
 				case 0:
 					extForce[IndNN(i,0)][0][count%2]=0;
 					break;
@@ -247,17 +309,35 @@ void calcF(double t){
 					extForce[IndNN(i,0)][0][count%2]=extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;
 					break;
 				case 2:
-					extForce[IndNN(i,0)][0][count%2]=extForceFactor*1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
-					break;
+					x0=x-L/4.;
+					extForce[IndNN(i,0)][0][count%2]=-speedRPS*L/tFinal;
+					for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+						xx=x0+k*L;
+						extForce[IndNN(i,0)][0][count%2]+=-2*extForceFactor*xx/sigVext0*exp((-xx*xx)/sigVext0);
+					}
+					break;	
 				case 3:
-					int x0=x-L/4.-L*t/tFinal;
+					extForce[IndNN(i,0)][0][count%2]=extForceFactor*period*M_PI/L*sin(2*M_PI*period*(x/L-speedRPS/1.*t/tFinal));
+					break;
+				case 4:
+					x0=x-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 					extForce[IndNN(i,0)][0][count%2]=0;
 					for(int k=-gaussForceScan;k<=gaussForceScan;k++){
-						x=x0+k*L;
-						extForce[IndNN(i,0)][0][count%2]+=-2*extForceFactor*x*exp(-x*x);
+						xx=x0+k*L;
+						extForce[IndNN(i,0)][0][count%2]+=-2*extForceFactor*xx/sigVext0*exp(-xx*xx/sigVext0);
 					}	
 					break;	
-					//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
+				case 5:
+					x0=x-L/4.;
+					double stdev1 = (1+0.7*sin(2*M_PI*gausspeed*t/tFinal))*sigVext0;
+					extForce[IndNN(i,0)][0][count%2]=0;
+					for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+						xx=x0+k*L;
+						extForce[IndNN(i,0)][0][count%2]+=-2*extForceFactor*xx/stdev1*exp((-xx*xx)/stdev1);
+					}
+					break;
+
+							//extForce[IndNN(i,0)][0][count%2]=1*M_PI/L*sin(2*M_PI*(x/L+4./1.*t/tFinal));
 					//extForce[IndNN(i,0)][0][count%2]=0/*-2*x*exp(-x*x);-2*(0.5-t/tFinal)*/+extForceFactor*(x)*(x-L)*(x-L/2.)*64./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
 			}
 		}
@@ -268,7 +348,8 @@ void calcF(double t){
 }
 
 double calcWWF(int b[],int select,bool pot){
-	return 0;	
+	if(!WWFBool)	
+		return 0;	
 	double sum=0;
 	double distx=0,disty=0,sqdist,temp;
 	int dist;
@@ -281,55 +362,106 @@ double calcWWF(int b[],int select,bool pot){
 			if(2*i==select||2*i+1==select) continue;
 			distx=(a[select-shift]-a[2*i])*dx;
 			distx-= L*(int)(2*distx/L);
-//			distx/=L;
+			//			distx/=L;
 			disty=(a[select-shift+1]-a[2*i+1])*dx;
 			disty-= L*(int)(2*disty/L);
-//			disty/=L;
-			sqdist=distx*distx+disty*disty;  //squared distance
-//			dist=sqrt(sqdist);
-//			sum+=8*dist/(1+8*8*dist*dist/L/L)/(1+8*8*dist*dist/L/L)/L*T/dx;
-			temp=exp(-sqdist);
-			if(!pot){
-				if(select%2==0) sum+=2*distx*temp;
-				else sum+=2*disty*temp;
+			//			disty/=L;
+			//			dist=sqrt(sqdist);
+			//			sum+=8*dist/(1+8*8*dist*dist/L/L)/(1+8*8*dist*dist/L/L)/L*T/dx;
+			if(gaussWW){
+				sqdist=distx*distx+disty*disty;  //squared distance
+				temp=exp(-sqdist);
+				if(!pot){
+					if(select%2==0) sum+=2*distx*temp;
+					else sum+=2*disty*temp;
+				}else{
+					sum+=temp;
+				}
 			}else{
-				sum+=temp;
+				double r=distx*distx+disty*disty;
+				if(r>sigWWF2)
+					return 0;
+				if(pot){
+					double root=sqrt(r);
+					sum+=(root-sigWWF)*(root+sigWWF)*(root-sigWWF)*(root+sigWWF)/sigWWF4;
+				}
+				else{
+					double factor=4*(r-sigWWF2)*(r+sigWWF2)/sigWWF4;
+					if(select%2==0)
+						sum+=distx*factor;
+					else
+						sum+=disty*factor;
+				}
+
+				/*if(fabs(distx) >= sigWWF || fabs(disty) >= sigWWF)
+				  continue;
+				  if(pot){
+				  double pro=1;
+				  for(int j=0;j<N_space;j++){
+				  double d=(j%2)*distx+((j+1)%2)*disty;
+				  pro*=16*(d-sigWWF)*(d-sigWWF)*(d+sigWWF)*(d+sigWWF)/sigWWF/sigWWF/sigWWF/sigWWF/16.;
+				  }
+				  sum+=pro;
+				  }
+				  else{ 
+				  if(select%2==1){
+				  double te=disty;
+				  disty=distx;
+				  distx=te;
+				  } 
+				//cout<<distx<<"   "<<disty<<endl;
+				sum+=(distx)*(distx-sigWWF)*(distx+sigWWF)*64./sigWWF/sigWWF/sigWWF/sigWWF/16.*16*(disty-sigWWF)*(disty-sigWWF)*(disty+sigWWF)*(disty+sigWWF)/sigWWF/sigWWF/sigWWF/sigWWF/16.;
+
+				}*/
 			}
 		}	
 	}else{
-		for(int i=0;i<N_PS;i++){
+		for(int i=0;i<N_part;i++){
 			if(i==select) continue;
 			dist=(a[select]-a[i]);
 			dist-= N*(int)(2*dist/N);
 			temp=WWFArray[abs(dist)];
 			//if(abs(dist)>=N/2+1)cout << dist << "\t" << temp <<"\t"<< exp(-dist*dist*dx*dx) << endl;
 			//temp =  exp(-dist*dist*dx*dx); 
-
-			if(!pot) sum+=2*dist*dx*temp;
-			else sum += temp;
+			if(gaussWW){
+				if(!pot) sum+=2*dist*dx*temp;
+				else sum += temp;
+			}
+			else{
+				if(pot) sum+=16*(dist*dx-sigWWF)*(dist*dx-sigWWF)*(dist*dx+sigWWF)*(dist*dx+sigWWF)/sigWWF/sigWWF/sigWWF/sigWWF/16.;
+				else sum+=dist*dx*temp;
+			}
 		}
 	}
-	return sum;
+	return WWFFactor*sum;
 }
 
 void initWWF(){
 	for(int x=0;x<=N/2;x++){
-		WWFArray[x]=exp(-x*x*dx*dx);
+		if(gaussWW)
+			WWFArray[x]=exp(-x*x*dx*dx);
+		else {
+			if(x*dx > sigWWF) 
+				WWFArray[x]=0;
+			else
+				WWFArray[x]=-(x*dx+sigWWF)*(x*dx-sigWWF)*64./sigWWF/sigWWF/sigWWF/sigWWF/16.;
+		}
 	}
 }
 
 void initPrint(){
-	ifstream versionfile("/home/nico/version.log");
+	string user="/home/nico/";
+	ifstream versionfile(user + "version.log");
 	versionfile>>version;
 	version++;
 	cout<<"Version: "<<version<<"Bool: "<<versionfile.is_open()<<endl;
 	versionfile.close();
-	ofstream versionfile1("/home/nico/version.log");
+	ofstream versionfile1(user + "version.log");
 	versionfile1<<version<<endl;
 	versionfile1.close();
 	string vString;
 	string sep=" | ";
-	string directory="/home/nico/data/";
+	string directory= user +"data/";
 	string forceString;
 	switch(forceInt){
 		case 0:
@@ -339,10 +471,16 @@ void initPrint(){
 			forceString="BavarianHat";
 			break;
 		case 2:
-			forceString="Sine";
+			forceString="Gauss + Constant Force";
 			break;
 		case 3:
+			forceString="Sine";
+			break;
+		case 4:
 			forceString="NoSlapGauss";
+			break;
+		case 5:
+			forceString="Gauss timedependent standard deviation";
 			break;
 	}
 	if(version<10) vString="00"+to_string(version);
@@ -359,6 +497,7 @@ void initPrint(){
 	}
 
 
+densityout.precision(10);
 
 }
 
@@ -380,8 +519,8 @@ void initArrays(){
 
 	Vext = (double*) malloc(NN*sizeof(double));
 
-	freeEnergy = (double**) malloc(5*sizeof(double*));
-	for(int i=0;i<5;i++)
+	freeEnergy = (double**) malloc(6*sizeof(double*));
+	for(int i=0;i<6;i++)
 		freeEnergy[i]=(double*) malloc(printNumb*sizeof(double));
 
 	// arrays with N*N: current, extForce
@@ -408,8 +547,8 @@ void initArrays(){
 	for(int i=0;i<6;i++) 
 		power[i]= (double*) malloc(printNumb*sizeof(double));
 
-	extPower = (double**) malloc(3*sizeof(double*));
-	for(int i=0;i<3;i++) 
+	extPower = (double**) malloc(5*sizeof(double*));
+	for(int i=0;i<5;i++) 
 		extPower[i]= (double*) malloc(printNumb*sizeof(double));
 
 	dissipation = (double**) malloc(3*sizeof(double*));
@@ -420,8 +559,8 @@ void initArrays(){
 	for(int i=0;i<6;i++) 
 		powerAd[i]= (double*) malloc(printNumb*sizeof(double));
 	
-	daniA = (double**) malloc(2*sizeof(double*));
-	for(int i=0;i<2;i++) 
+	daniA = (double**) malloc(7*sizeof(double*));
+	for(int i=0;i<7;i++) 
 		daniA[i]= (double*) malloc(printNumb*sizeof(double));
 
 	squares = (double**) malloc(10*sizeof(double*));
@@ -451,6 +590,7 @@ void initArrays(){
 }
 
 double getInitial(int a[]){
+	//return 1;
 	double sum=0;
 	int index;
 	for(int select=0;select<N_part;select++){
@@ -486,19 +626,21 @@ void init(){
 		}
 	}*/
 	for(int i=0;i<NN;i++) Vext[i]=0;
-	int over=1;	
+	int over=0;	
 	for(int k=-over;k<=over;k++){
 		for(int i=0;i<N;i++){
-			double x=(i-N/4)*dx+L*k;
+			double x=(i-0*N/4)*dx+L*k;
 			if(N_space==2){
 				for(int n=-over;n<=over;n++){
 					for(int j=0;j<N;j++){
-						double y=(j-N/4)*dx+L*n;
-						Vext[IndNN(i,j)]-=extPotFactor0*exp(-(x*x+y*y)/sigVext0);
+						double y=(j-0*N/4)*dx+L*n;
+						if(homoBool)Vext[IndNN(i,j)]+=0;
+						else Vext[IndNN(i,j)]+=-0.5*cos(2*M_PI*period*(x/L));//-extPotFactor0*exp(-(x*x+y*y)/sigVext0);
 					}
 				}
 			}else{
-				Vext[IndNN(i,0)]-=extPotFactor0*exp(-(x)*(x)/sigVext0);
+				if(homoBool)Vext[IndNN(i,0)]+=0;//-0.5*cos(2*M_PI*(x/L));//
+				else Vext[IndNN(i,0)]-=extPotFactor0*exp(-(x)*(x)/sigVext0);
 			}
 		}
 	}
@@ -642,6 +784,20 @@ void densitySum(double* psi,double rho[]){
 	}
 }
 
+/*void densitySum2(double* psi , double rho[]){
+	double temp[NN];
+	for(int i=0;i<N*N;i++)
+		rho[i]+=0;
+	for(int p=0;p<N_part;p++){
+		for(int q=0;q<N_part;q++){  //////////////////////////////does not work!!!
+			if(p==q) continue;
+			density2(psi,temp,q,p);
+			for(int i=0;i<N*N;i++)
+				rho[i]+=temp[i];
+		}
+	}
+}*/
+
 void density1(double* psi,double rho[],int select){
 	int a[N_PS+1];
 	for(int j=0; j<N_PS;j++) a[j]=0;
@@ -732,26 +888,34 @@ double residuum(double a[],double b[],int n,int dim){
 }
 
 double residuumCurrent(){
-	double sum=0;
+	double sum=0,sum1=0,sC;
 	if(N_space==1){
 		if(step>1){
 			for(int i=0;i<N;i++){
-				sum+= fabs((sumCurrent(i+1,0,0)-sumCurrent(i-1,0,0))/(2*dx) + (density[(step)%3][i]-density[(step-2+3)%3][i])/(2*dt));
+				sC=(sumCurrent(i+1,0,0)-sumCurrent(i-1,0,0))/(2*dx);
+				dcurrent<<sC<<"\t"<<(density[(step)%3][i]-density[(step-2+3)%3][i])/(2*dt)<<endl;
+				sum1+=fabs(sC);
+				sum+= fabs(sC + (density[(step)%3][i]-density[(step-2+3)%3][i])/(2*dt));
 			}
 			sum*=dx;
+			sum1*=dx;
 		}
 	}
 	else{
 		if(step>1){
 			for(int posx=0;posx<N;posx++){
 				for(int posy=0;posy<N;posy++){
-					sum+= fabs((sumCurrent(posx+1,posy,0)-sumCurrent(posx-1,posy,0)+sumCurrent(posx,posy+1,1)-sumCurrent(posx,posy-1,1))/(2*dx) + (density[(step)%3][IndNN(posx,posy)]-density[(step-2+3)%3][IndNN(posx,posy)])/(2*dt));
+					sC=(sumCurrent(posx+1,posy,0)-sumCurrent(posx-1,posy,0)+sumCurrent(posx,posy+1,1)-sumCurrent(posx,posy-1,1))/(2*dx);
+					sum1+=fabs(sC);
+					sum+= fabs(sC + (density[(step)%3][IndNN(posx,posy)]-density[(step-2+3)%3][IndNN(posx,posy)])/(2*dt));
 				}
 			}
 			sum*=dx2;
+			sum1*=dx2;
 		}
 	}
-	return sum;
+				cout<<"Residuum Current: abs:"<<sum<<"\trel:"<<sum/sum1<<endl;
+	return sum/sum1;
 }
 
 
@@ -940,21 +1104,30 @@ double diffDens(int x,int y, int dir){
 
 
 void dani(){
-	double sum=0;
+	double sum[6];
+	for (int i=0;i<6;i++)
+		sum[i]=0;
 	for(int x=0;x<N;x++){
 		int Ny=N;
 		if(N_space==1) Ny=1;
 		for(int y=0;y<Ny;y++){
-			for(int space=0;space<N_space;space++)
-				sum+=-T*sumCurrent(x,y,space)*diffDens(x,y,space);
+			for(int space=0;space<N_space;space++){
+				sum[0]+=-T*sumCurrent(x,y,space)*diffDens(x,y,space)/density[step%3][IndNN(x,y)];
+				sum[1]+=T*T*diffDens(x,y,space)*diffDens(x,y,space)/density[step%3][IndNN(x,y)];
+				sum[2]+=-T*current[IndNN(x,y)][2][space]*diffDens(x,y,space)/density[step%3][IndNN(x,y)];
+				sum[3]+=-T*extForce[IndNN(x,y)][space][(count+1)%2]*diffDens(x,y,space);
+				sum[4]+=-T*current[IndNN(x,y)][1][space]*diffDens(x,y,space)/density[step%3][IndNN(x,y)];
+				sum[5]+=-T*current[IndNN(x,y)][0][space]*diffDens(x,y,space)/density[step%3][IndNN(x,y)];
+			}
 		}
 	}
 	daniA[0][printStep]=step*dt;
-	daniA[1][printStep]=sum*powderNN;
+	for (int i=0;i<6;i++)
+		daniA[i+1][printStep]=sum[i]*powderNN;
 }
 
 void calcExtPower(){
-	double sum=0,sum1=0;
+	double sum=0,sum1=0,sum2=0,sum3=0;
 	for(int x=0;x<N;x++){
 		int Ny=N;
 		if(N_space==1)Ny=1;
@@ -963,11 +1136,15 @@ void calcExtPower(){
 				sum+=sumCurrent(x,y,space)*extForce[IndNN(x,y)][space][(count+1)%2];
 			if(VextTimeDependent)
 				sum1+=calcdtVext(x,y,step*dt)*density[(step)%3][IndNN(x,y)];
+			sum2+=density[(step)%3][IndNN(x,y)];
+			sum3+=sumCurrent(x,y,0); //speed has to be in x-direction
 		}
 	}
 	extPower[0][printStep]=step*dt;
 	extPower[1][printStep]=sum*powderNN;
 	extPower[2][printStep]=sum1*powderNN;
+	extPower[3][printStep]=sum2*powderNN*L*L*speedRPS*speedRPS/tFinal/tFinal;
+	extPower[4][printStep]=-sum3*powderNN*L*speedRPS/tFinal;
 	
 }
 
@@ -987,46 +1164,70 @@ void calcDiss(){
 }
 
 double calcdtVext(int x, int y, double t){
-	double r=0;
+	double r=0,xx,yy,x0,y0;
 	if(N_space==1){
 		switch(forceInt){
-			case 2:
-				r=extForceFactor*speedRPS*M_PI/tFinal*sin(2*M_PI*(x/L+speedRPS/1.*t/tFinal));
-				break;
 			case 3:
-				int x0=x-L/4.-speedRPS*L*t/tFinal;
+				r=extForceFactor*speedRPS*period*M_PI/tFinal*sin(2*period*M_PI*(x/L-speedRPS/1.*t/tFinal));
+				break;
+			case 4:
+						x0=x*dx-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 				for(int k=-1;k<=1;k++){
-					x=x0+k*L;
-					r+=2*extForceFactor*x*exp(-x*x-y*y)*speedRPS*L/tFinal;
+					xx=x0+k*L;
+					r+=2*extForceFactor*xx/sigVext0*exp(-xx*xx/sigVext0)*speedRPS*L/tFinal;
 				}
 				break;
+			case 5:
+				x0=x*dx-L/4.;
+				double stdev = (1+0.7*sin(2*M_PI*t*gausspeed/tFinal))*sigVext0;
+				for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+					xx=x0+k*L;
+					r+=-extForceFactor*xx*xx/stdev/stdev*exp((-xx*xx)/stdev)*sigVext0*cos(2*M_PI*gausspeed*t/tFinal)*2*M_PI*gausspeed/tFinal*0.7;
+				}
+				break;
+
 		}
 	}else{
 		switch(forceInt){
-			case 2:
-				r=extForceFactor*speedRPS*M_PI/tFinal*sin(2*M_PI*(x/L+speedRPS/1.*t/tFinal));
-				break;
 			case 3:
-				int x0=x-L/4.-speedRPS*L*t/tFinal;
-				int y0=y-L/4.-speedRPS*L*t/tFinal;
+				r=extForceFactor*speedRPS*period*M_PI/tFinal*sin(2*M_PI*period*(x/L-speedRPS/1.*t/tFinal));
+				break;
+			case 4:
+						x0=x-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
+						y0=y-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 				for(int k=-gaussForceScan;k<=gaussForceScan;k++){
-					x=x0+k*L;
-					y=y0+k*L;
-					r+=2*extForceFactor*x*exp(-x*x-y*y)*speedRPS*L/tFinal;
-					r+=2*extForceFactor*y*exp(-x*x-y*y)*speedRPS*L/tFinal;
+					xx=x0+k*L;
+					yy=y0+k*L;
+					r+=2*extForceFactor*xx/sigVext0*exp((-xx*xx-yy*yy)/sigVext0)*speedRPS*L/tFinal;
+					r+=2*extForceFactor*yy/sigVext0*exp((-xx*xx-yy*yy)/sigVext0)*speedRPS*L/tFinal;
 				}
 				break;	
+			case 5:
+				x0=x*dx-L/4.;
+				y0=y*dx-L/4.;
+				double stdev = (1+0.7*sin(2*M_PI*gausspeed*t/tFinal))*sigVext0;
+				for(int k=-gaussForceScan;k<=gaussForceScan;k++){
+					xx=x0+k*L;
+					yy=y0+k*L;
+					r+=-extForceFactor*(xx*xx+yy*yy)/stdev/stdev*exp((-xx*xx-yy*yy)/stdev)*sigVext0*cos(2*M_PI*gausspeed*t/tFinal)*2*M_PI*gausspeed/tFinal*0.7;
+
+				}
+				break;
+
 		}
 	}
-	if(VextTimeDependent && r==0)
-		for(int i=0;i<5;i++)
-			cout<<"warning dV(t)/dt=0!"<<endl;
+//	if(VextTimeDependent && r==0)
+//		for(int i=0;i<5;i++)
+//			cout<<"warning dV(t)/dt=0!"<<endl;
 	return r;
 }
 
+
 int main(){
-	if(forceInt>=2){
+	if(forceInt>=3){
 		VextTimeDependent=true;
+	}
+	if(forceInt<2){
 		speedRPS=0;
 	}
 	init();
@@ -1036,13 +1237,13 @@ int main(){
 	cout<<psi0<<endl;
 	time_t t_0;
 	time(&t_0);
-	if(printWWFBool)	printWWF();
 
 	{calcF(0);calcF(0);}
 	cout<<"N Space: "<<N_space<<endl<<"N Part: "<<N_part<<endl;
 	for(step=0;step<steps;step++){
 		densitySum(psi,density[(step)%3]);   // do not change this order
-		resCurr=residuumCurrent();       // residuumCurrent needs old current and new density
+		if(step%int(ceil(steps*1./printNumb))==0) 
+			resCurr=residuumCurrent();       // residuumCurrent needs old current and new density
 		calcCurrent(psi,current);
 		//		printPsi(density[i%3],N,densityout);
 		if(step%int(ceil(steps*1./printNumb))==0) {
@@ -1074,6 +1275,7 @@ int main(){
 					printCurrent(velAd,velAdout);
 				}
 			}
+			if(printWWFBool)	printWWF();
 
 			if(N_PS<=2||printPsiBool){ 
 				printPsi(psi,N_psi,psiout); 
@@ -1088,7 +1290,6 @@ int main(){
 			}
 			if(printCurrentBool){
 				printCurrent(current,currentout);
-				cout<<"Residuum Current: "<<resCurr<<endl;
 			}
 			if(printVelBool){
 				calcVel(vel);
@@ -1118,6 +1319,7 @@ int main(){
 			double psi1=intPsi(psi); 
 			cout<<"Deviation: \t"<<(psi1-psi0)/psi0<<endl;
 			calcDiss();
+			printSuperPower(superPowerout);
 			printStep++;
 		}
 
