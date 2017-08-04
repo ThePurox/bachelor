@@ -14,15 +14,15 @@ using namespace std;
 
 const int N_part=2;
 const int N_space=1;
-const int N=50;
+const int N=100;
 const double tFinal=10e-0;//*sigWWPot^2*gamma/eps
 const double dt=5e-3;
 const double T=00.40;
 const double L=10;//*sigWWPot
-const int printNumb=200;
-double speedRPS=0;
+const int printNumb=100;
+double speedRPS=3;
 double gausspeed=6;
-double period=4;
+double period=1;
 
 bool VextTimeDependent=false;
 
@@ -243,7 +243,7 @@ void calcF(double t){
 						x0=x-L/4.;
 						y0=y-L/4.;
 						extForce[IndNN(i,j)][0][count%2]=-speedRPS*L/tFinal;
-						extForce[IndNN(i,j)][1][count%2]=-speedRPS*L/tFinal;
+						extForce[IndNN(i,j)][1][count%2]=0;//-speedRPS*L/tFinal;
 						for(int k=-gaussForceScan;k<=gaussForceScan;k++){
 							xx=x0+k*L;
 							yy=y0+k*L;
@@ -257,7 +257,7 @@ void calcF(double t){
 						break;
 					case 4:
 						x0=x-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
-						y0=y-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
+						y0=y-L/4.-0*(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 						extForce[IndNN(i,j)][0][count%2]=0;
 						extForce[IndNN(i,j)][1][count%2]=0;
 						for(int k=-gaussForceScan;k<=gaussForceScan;k++){
@@ -428,7 +428,7 @@ double calcWWF(int b[],int select,bool pot){
 				else sum += temp;
 			}
 			else{
-				if(pot) sum+=16*(dist*dx-sigWWF)*(dist*dx-sigWWF)*(dist*dx+sigWWF)*(dist*dx+sigWWF)/sigWWF/sigWWF/sigWWF/sigWWF/16.;
+				if(pot) sum+=16*(dist*dx-sigWWF)*(dist*dx-sigWWF)*(dist*dx+sigWWF)*(dist*dx+sigWWF)/sigWWF4/16.;
 				else sum+=dist*dx*temp;
 			}
 		}
@@ -444,13 +444,13 @@ void initWWF(){
 			if(x*dx > sigWWF) 
 				WWFArray[x]=0;
 			else
-				WWFArray[x]=-(x*dx+sigWWF)*(x*dx-sigWWF)*64./sigWWF/sigWWF/sigWWF/sigWWF/16.;
+				WWFArray[x]=-(x*dx+sigWWF)*(x*dx-sigWWF)*64./sigWWF4/16.;
 		}
 	}
 }
 
 void initPrint(){
-	string user="/home/nico/";
+	string user="/home/tobias/";
 	ifstream versionfile(user + "version.log");
 	versionfile>>version;
 	version++;
@@ -1128,7 +1128,9 @@ void dani(){
 
 void calcExtPower(){
 	double sum=0,sum1=0,sum2=0,sum3=0;
-	for(int x=0;x<N;x++){
+	double v=-L*speedRPS/tFinal;
+	double dV=0;
+		for(int x=0;x<N;x++){
 		int Ny=N;
 		if(N_space==1)Ny=1;
 		for(int y=0;y<Ny;y++){
@@ -1136,15 +1138,20 @@ void calcExtPower(){
 				sum+=sumCurrent(x,y,space)*extForce[IndNN(x,y)][space][(count+1)%2];
 			if(VextTimeDependent)
 				sum1+=calcdtVext(x,y,step*dt)*density[(step)%3][IndNN(x,y)];
-			sum2+=density[(step)%3][IndNN(x,y)];
-			sum3+=sumCurrent(x,y,0); //speed has to be in x-direction
+			//sum2+=density[(step)%3][IndNN(x,y)];
+sum2+=sumCurrent(x,y,0);
+			dV=0;
+			int pos[2]={x,y};
+//			for(int i=0; i<N_part;i++)
+				//dV+=diffVext(pos,i,0);
+			sum3+=1*(extForce[IndNN(x,y)][0][(count+1)%2]-v)*density[(step)%3][IndNN(x,y)]+sumCurrent(x,y,0); //speed has to be in x-direction
 		}
 	}
 	extPower[0][printStep]=step*dt;
 	extPower[1][printStep]=sum*powderNN;
 	extPower[2][printStep]=sum1*powderNN;
-	extPower[3][printStep]=sum2*powderNN*L*L*speedRPS*speedRPS/tFinal/tFinal;
-	extPower[4][printStep]=-sum3*powderNN*L*speedRPS/tFinal;
+	extPower[3][printStep]=sum2*powderNN*v;
+	extPower[4][printStep]=sum3*powderNN*v;
 	
 }
 
@@ -1174,7 +1181,7 @@ double calcdtVext(int x, int y, double t){
 						x0=x*dx-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 				for(int k=-1;k<=1;k++){
 					xx=x0+k*L;
-					r+=2*extForceFactor*xx/sigVext0*exp(-xx*xx/sigVext0)*speedRPS*L/tFinal;
+					r+=-2*extForceFactor*xx/sigVext0*exp(-xx*xx/sigVext0)*speedRPS*L/tFinal;
 				}
 				break;
 			case 5:
@@ -1194,12 +1201,12 @@ double calcdtVext(int x, int y, double t){
 				break;
 			case 4:
 						x0=x-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
-						y0=y-L/4.-(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
+						y0=y-L/4.-0*(speedRPS*t/tFinal-int(speedRPS*t/tFinal))*L;
 				for(int k=-gaussForceScan;k<=gaussForceScan;k++){
 					xx=x0+k*L;
 					yy=y0+k*L;
-					r+=2*extForceFactor*xx/sigVext0*exp((-xx*xx-yy*yy)/sigVext0)*speedRPS*L/tFinal;
-					r+=2*extForceFactor*yy/sigVext0*exp((-xx*xx-yy*yy)/sigVext0)*speedRPS*L/tFinal;
+					r+=-2*extForceFactor*xx/sigVext0*exp((-xx*xx-yy*yy)/sigVext0)*speedRPS*L/tFinal;
+					r+=0*(-2)*extForceFactor*yy/sigVext0*exp((-xx*xx-yy*yy)/sigVext0)*speedRPS*L/tFinal;
 				}
 				break;	
 			case 5:
