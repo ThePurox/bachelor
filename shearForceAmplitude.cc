@@ -12,8 +12,8 @@ using namespace std;
 string directory = "/home/nico/data/";
 string filename1 = directory + "superCurr580.dat";
 string filename2 = directory + "superCurr581.dat";
-const int N=17;
-int numbers[N]={580,581,599,688,600,689,690,691,601,692,693,694,695,653,696,654,655};
+const int N=26;
+int numbers[N]={580,581,599,688,600,689,690,691,601,692,693,694,695,653,696,654,655,710,711,712,713,714,715,716,717,718};
 int F[N];
 string filenames[N];
 ofstream out("sheardataC.dat");
@@ -41,6 +41,15 @@ int main(){
 	F[14]=48;
 	F[15]=64;
 	F[16]=128;
+	F[17]=0.4;
+	F[18]=0.6;
+	F[19]=0.8;
+	F[20]=1.5;
+	F[21]=3;
+	F[22]=5;
+	F[23]=7;
+	F[24]=40;
+	F[25]=90;
 	for(int i=0;i<N;i++){
 		filenames[i]=directory + "superCurr" + to_string(numbers[i]) + ".dat";
 		ifstream file1(filenames[i]);
