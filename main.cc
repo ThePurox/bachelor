@@ -13,14 +13,14 @@ using namespace std;
 #include "constants.h"
 
 const int N_part=2;
-const int N_space=1;
-const int N=100;
-const double tFinal=10e-0;//*sigWWPot^2*gamma/eps
+const int N_space=2;
+const int N=50;
+const double tFinal=20e-0;//*sigWWPot^2*gamma/eps
 const double dt=5e-3;
 const double T=00.40;
 const double L=10;//*sigWWPot
-const int printNumb=100;
-double speedRPS=3;
+const int printNumb=200;
+double speedRPS=0;
 double gausspeed=6;
 double period=1;
 
@@ -30,7 +30,7 @@ const bool WWFBool=true;
 const bool gaussWW=true;
 const double sigWWF=1.5;
 
-const bool homoBool=false;
+const bool homoBool=true;
 
 const bool superAdBool=true;
 const bool analyticBool=false;
@@ -45,9 +45,10 @@ const bool printDisBool=true;
 const bool printExtPowerBool=true;
 const bool daniBool=true;
 const bool printVelBool=true;
+const bool corrbool=true;
 
-int forceInt=4;
-const double extForceFactor=1;
+int forceInt=-1;
+const double extForceFactor=0.1;
 
 /* 0 = No Force
  * -1 = Sheer sine
@@ -87,7 +88,9 @@ vector<string> filenames={
 	"squares",
 	"velocity",
 	"velocityAd",
-	"superPower"
+	"superPower",
+	"corrbothout",
+	"corrfixout"
 };
 
 vector<ofstream> ofstreams(filenames.size());
@@ -128,6 +131,8 @@ ofstream& squaresout=ofstreams[24];
 ofstream& velout=ofstreams[25];
 ofstream& velAdout=ofstreams[26];
 ofstream& superPowerout=ofstreams[27];
+ofstream& corrbothout=ofstreams[28];
+ofstream& corrfixout=ofstreams[29];
 
 
 const double sigWWPot=1;
@@ -450,7 +455,7 @@ void initWWF(){
 }
 
 void initPrint(){
-	string user="/home/tobias/";
+	string user="/home/nico/";
 	ifstream versionfile(user + "version.log");
 	versionfile>>version;
 	version++;
@@ -491,13 +496,13 @@ void initPrint(){
 	for(int i=0;i<int(filenames.size());i++){
 		filenames[i]=directory + filenames[i] + vString + ".dat";
 		ofstreams[i].open(filenames[i]);
+		ofstreams[i].precision(10);
 //ofstreams[i]<<"#N_part: "<<N_part<<sep<<"N_space: "<<N_space<<sep<<"N: "<<N<<sep<<"t_final: "<<tFinal<<sep<<"dt: "<<dt<<sep<<"Boxsize: "<<L<<sep<<"printNumb: "<<printNumb<<endl;
 		ofstreams[i]<<"#N_part: "<<sep<<"N_space: "<<sep<<"N: "<<sep<<"t_final: "<<sep<<"dt: "<<sep<<"Boxsize: "<<sep<<"printNumb: "<<sep<<"Temp: "<<sep<<"Force: "<<endl;
 		ofstreams[i]<<"#"<<N_part<<" "<<N_space<<" "<<N<<" "<<tFinal<<" "<<dt<<" "<<L<<" "<<printNumb<<" "<<T<<" "<<forceString<<endl;
 	}
 
 
-densityout.precision(10);
 
 }
 
@@ -635,7 +640,7 @@ void init(){
 					for(int j=0;j<N;j++){
 						double y=(j-0*N/4)*dx+L*n;
 						if(homoBool)Vext[IndNN(i,j)]+=0;
-						else Vext[IndNN(i,j)]+=-0.5*cos(2*M_PI*period*(x/L));//-extPotFactor0*exp(-(x*x+y*y)/sigVext0);
+						else Vext[IndNN(i,j)]+=-extForceFactor*0.5*cos(2*M_PI*period*(x/L));//-extPotFactor0*exp(-(x*x+y*y)/sigVext0);
 					}
 				}
 			}else{
@@ -1129,7 +1134,6 @@ void dani(){
 void calcExtPower(){
 	double sum=0,sum1=0,sum2=0,sum3=0;
 	double v=-L*speedRPS/tFinal;
-	double dV=0;
 		for(int x=0;x<N;x++){
 		int Ny=N;
 		if(N_space==1)Ny=1;
@@ -1140,8 +1144,6 @@ void calcExtPower(){
 				sum1+=calcdtVext(x,y,step*dt)*density[(step)%3][IndNN(x,y)];
 			//sum2+=density[(step)%3][IndNN(x,y)];
 sum2+=sumCurrent(x,y,0);
-			dV=0;
-			int pos[2]={x,y};
 //			for(int i=0; i<N_part;i++)
 				//dV+=diffVext(pos,i,0);
 			sum3+=1*(extForce[IndNN(x,y)][0][(count+1)%2]-v)*density[(step)%3][IndNN(x,y)]+sumCurrent(x,y,0); //speed has to be in x-direction
@@ -1286,6 +1288,7 @@ int main(){
 
 			if(N_PS<=2||printPsiBool){ 
 				printPsi(psi,N_psi,psiout); 
+				factorPsi();
 			}
 			if(printDensityBool){
 				printPsi(density[step%3],NN,densityout);
@@ -1317,7 +1320,8 @@ int main(){
 			if(daniBool){
 				dani();
 			}
-
+			if(corrbool)
+				printCorrelation(corrbothout,corrfixout);
 			if(superAdBool){
 				if(printCurrentBool){
 					printSuperCurr(superCurrout);

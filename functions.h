@@ -47,6 +47,8 @@ void printSuperCurr(ofstream &superCurrout);
 void calcVel(double*** vel);
 double powder(int exp);
 void printSuperPower(ofstream &superPowerout);
+void factorPsi();
+void printCorrelation(ofstream &file,ofstream &file1);
 
 #endif
 

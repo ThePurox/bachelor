@@ -40,17 +40,22 @@ void printPsi(double func[],int n,ofstream &out){
 		}	
 		out<<endl;
 
-		if(N_PS==1){
-			out<<endl;
-			for(int i=0;i<N;i++){
-				for(int j=0;j<N;j++){
-					out2<<i*dx<<"\t"<<j*dx<<"\t"<<func[i]*func[j]<<endl;
-				}
-				out2<<endl;
+
+	}
+	if(N_PS==1)
+		out<<endl;
+
+}
+
+void factorPsi(){
+if(N_PS==1){
+		for(int i=0;i<N;i++){
+			for(int j=0;j<N;j++){
+				out2<<i*dx<<"\t"<<j*dx<<"\t"<<psi[i]*psi[j]<<endl;
 			}
 			out2<<endl;
-
 		}
+		out2<<endl;
 	}
 }
 
@@ -225,3 +230,38 @@ void printTime(double**arr,ofstream &file){
 		file<<endl;
 	}
 }
+
+
+void printCorrelation(ofstream &file, ofstream &file1){
+	double g[N][N];
+	double g1[N][N];
+	for(int i=0;i<N;i++)
+		for(int j=0;j<N;j++){
+			g[i][j]=0;
+			g1[i][j]=0;
+		}
+	for(int x=0;x<N;x++){
+		for(int y=0;y<N;y++){
+			for(int x1=0;x1<N;x1++){
+				for(int y1=0;y1<N;y1++){
+					int a[]={x1,y1,x1-x,y1-y};
+					g[x][y]+=psi[LinInd(a)];
+					int b[]={x1,y1,x1-x,y};
+					g1[x][y]+=psi[LinInd(b)];
+				}
+			}
+		}
+	}
+	for(int x=0;x<N;x++){
+		for(int y=0;y<N;y++){
+			file<<x*dx<<"\t"<<y*dx<<"\t"<<g[x][y]<<endl;
+			file1<<x*dx<<"\t"<<y*dx<<"\t"<<g1[x][y]<<endl;
+		}
+		file<<endl;
+		file1<<endl;
+	}
+	file<<endl;
+	file1<<endl;
+
+}
+
