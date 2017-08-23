@@ -13,14 +13,14 @@ using namespace std;
 #include "constants.h"
 
 const int N_part=2;
-const int N_space=2;
-const int N=50;
-const double tFinal=20e-0;//*sigWWPot^2*gamma/eps
+const int N_space=1;
+const int N=100;
+const double tFinal=25e-0;//*sigWWPot^2*gamma/eps
 const double dt=5e-3;
 const double T=00.40;
 const double L=10;//*sigWWPot
 const int printNumb=200;
-double speedRPS=0;
+double speedRPS=3;
 double gausspeed=6;
 double period=1;
 
@@ -30,7 +30,7 @@ const bool WWFBool=true;
 const bool gaussWW=true;
 const double sigWWF=1.5;
 
-const bool homoBool=true;
+const bool homoBool=false;
 
 const bool superAdBool=true;
 const bool analyticBool=false;
@@ -45,10 +45,10 @@ const bool printDisBool=true;
 const bool printExtPowerBool=true;
 const bool daniBool=true;
 const bool printVelBool=true;
-const bool corrbool=true;
+const bool corrbool=false;
 
-int forceInt=-1;
-const double extForceFactor=0.1;
+int forceInt=2;
+const double extForceFactor=1;
 
 /* 0 = No Force
  * -1 = Sheer sine
@@ -233,7 +233,7 @@ void calcF(double t){
 				//extForce[IndNN(i,j)][1][count%2]=0+extForceFactor*(y)*(y-L)*(y-L/2.)*64./L/L/L/L*(L*L*x*x-2*x*x*x*L+x*x*x*x)*16./L/L/L/L;//*x/L*exp(-(x*x+y*y*(1%N_space))*20/L/L);
 				switch(forceInt){
 					case -1:
-						extForce[IndNN(i,j)][0][count%2]=extForceFactor*M_PI/L*sin(2*M_PI*y/L);
+						extForce[IndNN(i,j)][0][count%2]=extForceFactor*period*M_PI/L*sin(2*M_PI*period*y/L);
 						extForce[IndNN(i,j)][1][count%2]=0;
 						break;
 					case 0:
@@ -631,10 +631,10 @@ void init(){
 		}
 	}*/
 	for(int i=0;i<NN;i++) Vext[i]=0;
-	int over=0;	
+	int over=1;	
 	for(int k=-over;k<=over;k++){
 		for(int i=0;i<N;i++){
-			double x=(i-0*N/4)*dx+L*k;
+			double x=(i-1*N/4)*dx+L*k;
 			if(N_space==2){
 				for(int n=-over;n<=over;n++){
 					for(int j=0;j<N;j++){
@@ -1231,6 +1231,84 @@ double calcdtVext(int x, int y, double t){
 	return r;
 }
 
+void print(double psi0){
+	double baryA[NN],relaA[NN];
+	if(superAdBool){
+		doSuperAd();
+		cout<<"Resdiuum SuperAdiabatic: \t" << residuum(psi,psiAd,N_psi,N_PS)<<endl;
+		if(N_PS<=2||printPsiBool){ 
+			printPsi(psiAd,N_psi,psiAdout); 
+		}
+		if(printDensityBool){
+			densitySum(psiAd,baryA);
+			printPsi(baryA,NN,densityAdout);
+		}
+		if(printRelativeBool){
+			calcRelative(psiAd,relaA,baryA);
+			printPsi(relaA,NN,relativeAdout);
+			printPsi(baryA,NN,barycenterAdout);
+		}
+		if(printCurrentBool){
+			calcCurrent(psiAd,currentAd);
+			printCurrent(currentAd,currentAdout);
+		}
+		//if(printPowerBool){
+		//	calcPower(psiAd,powerAd);
+		//}
+		if(printVelBool){
+			calcVel(velAd);
+			printCurrent(velAd,velAdout);
+		}
+	}
+	if(printWWFBool)	printWWF();
+
+	if(N_PS<=2||printPsiBool){ 
+		printPsi(psi,N_psi,psiout); 
+		factorPsi();
+	}
+	if(printDensityBool){
+		printPsi(density[step%3],NN,densityout);
+	}
+	if(printRelativeBool){
+		calcRelative(psi,relaA,baryA);
+		printPsi(relaA,NN,relativeout);
+		printPsi(baryA,NN,barycenterout);
+	}
+	if(printCurrentBool){
+		printCurrent(current,currentout);
+	}
+	if(printVelBool){
+		calcVel(vel);
+		printCurrent(vel,velout);
+	}
+	if(printPowerBool){
+		calcExtPower();
+		calcPower(psi,power);
+	}
+	if(analyticBool){
+		analyticfactor(step*dt); 
+		double div=1./intPsi(anal);
+		cout<<"Analytic: \t" << 1.-intPsi(anal)<<endl;
+		for(int j=0;j<N_psi;j++) anal[j]*=div;
+		printPsi(anal,N_psi,anout);
+		cout<<"Resdiuum Analytic: \t" << residuum(psi,anal,N_psi,N_PS)<<endl;
+	}
+	if(daniBool){
+		dani();
+	}
+	if(corrbool)
+		printCorrelation(corrbothout,corrfixout);
+	if(superAdBool){
+		if(printCurrentBool){
+			printSuperCurr(superCurrout);
+		}
+	}
+	double psi1=intPsi(psi); 
+	calcDiss();
+	printSuperPower(superPowerout);
+	cout<<"Deviation: \t"<<(psi1-psi0)/psi0<<endl;
+
+}	
 
 int main(){
 	if(forceInt>=3){
@@ -1257,85 +1335,19 @@ int main(){
 		//		printPsi(density[i%3],N,densityout);
 		if(step%int(ceil(steps*1./printNumb))==0) {
 			cout<<(100.*step)/steps<<"%"<<endl;
-			if(superAdBool){
-				doSuperAd();
-				cout<<"Resdiuum SuperAdiabatic: \t" << residuum(psi,psiAd,N_psi,N_PS)<<endl;
-				if(N_PS<=2||printPsiBool){ 
-					printPsi(psiAd,N_psi,psiAdout); 
-				}
-				if(printDensityBool){
-					densitySum(psiAd,baryA);
-					printPsi(baryA,NN,densityAdout);
-				}
-				if(printRelativeBool){
-					calcRelative(psiAd,relaA,baryA);
-					printPsi(relaA,NN,relativeAdout);
-					printPsi(baryA,NN,barycenterAdout);
-				}
-				if(printCurrentBool){
-					calcCurrent(psiAd,currentAd);
-					printCurrent(currentAd,currentAdout);
-				}
-				//if(printPowerBool){
-				//	calcPower(psiAd,powerAd);
-				//}
-				if(printVelBool){
-					calcVel(velAd);
-					printCurrent(velAd,velAdout);
-				}
-			}
-			if(printWWFBool)	printWWF();
-
-			if(N_PS<=2||printPsiBool){ 
-				printPsi(psi,N_psi,psiout); 
-				factorPsi();
-			}
-			if(printDensityBool){
-				printPsi(density[step%3],NN,densityout);
-			}
-			if(printRelativeBool){
-				calcRelative(psi,relaA,baryA);
-				printPsi(relaA,NN,relativeout);
-				printPsi(baryA,NN,barycenterout);
-			}
-			if(printCurrentBool){
-				printCurrent(current,currentout);
-			}
-			if(printVelBool){
-				calcVel(vel);
-				printCurrent(vel,velout);
-			}
-			if(printPowerBool){
-				calcExtPower();
-				calcPower(psi,power);
-			}
-			if(analyticBool){
-				analyticfactor(step*dt); 
-				double div=1./intPsi(anal);
-				cout<<"Analytic: \t" << 1.-intPsi(anal)<<endl;
-				for(int j=0;j<N_psi;j++) anal[j]*=div;
-				printPsi(anal,N_psi,anout);
-				cout<<"Resdiuum Analytic: \t" << residuum(psi,anal,N_psi,N_PS)<<endl;
-			}
-			if(daniBool){
-				dani();
-			}
-			if(corrbool)
-				printCorrelation(corrbothout,corrfixout);
-			if(superAdBool){
-				if(printCurrentBool){
-					printSuperCurr(superCurrout);
-				}
-			}
-			double psi1=intPsi(psi); 
-			cout<<"Deviation: \t"<<(psi1-psi0)/psi0<<endl;
-			calcDiss();
-			printSuperPower(superPowerout);
-			printStep++;
+			print(psi0);
+						printStep++;
 		}
 
 		doStep(step*dt);
 	}
+	densitySum(psi,density[(step)%3]);   // do not change this order
+		if(step%int(ceil(steps*1./printNumb))==0) 
+			resCurr=residuumCurrent();       // residuumCurrent needs old current and new density
+		calcCurrent(psi,current);
+print(psi0);
+
+
 	if(printPowerBool){
 		if(superAdBool)
 			printTime(powerAd,powerAdout);

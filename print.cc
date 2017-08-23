@@ -13,7 +13,7 @@ using namespace std;
 
 void printPsi(double func[],int n,ofstream &out){
 	if(n==N){
-		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i+1*int(n*speedRPS*step*dt/tFinal)+int(speedRPS+1)*n)%n]<<endl;	
+		for(int i=0;i<N;i++) out<<i*dx<<"\t"<<func[(i+0*int(n*speedRPS*step*dt/tFinal)+int(speedRPS+1)*n)%n]<<endl;	
 		out<<endl<<endl;
 		return;
 	}
